@@ -22,6 +22,17 @@ e2e/       Playwright, drives frontend + backend    (pnpm workspace member)
 root `pnpm-lock.yaml`). `backend/` is a separate uv project with its own lock
 file — run `pnpm install` from repo root once, and `uv sync` from `backend/`.
 
+## Scoped instructions
+
+Area-specific conventions live in `.claude/` and are part of these
+instructions:
+
+- @.claude/frontend/INSTRUCTIONS.md — **frontend**: shadcn/ui is the default
+  component library our components are built on; theming token contract;
+  testing conventions.
+- @.claude/backend/INSTRUCTIONS.md — **backend**: route/model/schema
+  conventions, error-status contract, migration and test rules.
+
 ## Commands
 
 ### Backend (`cd backend`)
