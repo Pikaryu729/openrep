@@ -77,6 +77,20 @@ describe('SettingsPage appearance', () => {
   })
 })
 
+describe('SettingsPage units', () => {
+  it('persists the units preference', () => {
+    renderWithClient(<SettingsPage />)
+
+    expect(screen.getByTestId('unit-metric')).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(screen.getByTestId('unit-imperial'))
+
+    expect(localStorage.getItem('openrep.units')).toBe('imperial')
+    expect(screen.getByTestId('unit-imperial')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('unit-metric')).toHaveAttribute('aria-pressed', 'false')
+  })
+})
+
 describe('SettingsPage backup', () => {
   it('imports a chosen backup file with the selected mode', async () => {
     const document_ = {

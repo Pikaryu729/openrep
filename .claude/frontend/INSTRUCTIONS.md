@@ -62,6 +62,9 @@ Theme tokens live in `src/index.css` (Tailwind v4, no config file):
   persisted user themes and the FOUC boot script break.
 - Tailwind's `dark:` variant is bound to `[data-mode='dark']` via
   `@custom-variant`, not to `prefers-color-scheme`.
+- Units preference (`openrep.units` in localStorage, `src/lib/units.ts`):
+  weights are ALWAYS stored and sent to the API in kilograms; convert only at
+  the display/input boundary via `kgToDisplay`/`displayToKg`/`useUnits`.
 - When `shadcn add` injects new token blocks into `index.css`, fold them into
   our `:root[data-mode=...]` blocks and delete any generated `.dark { ... }`
   block — we have no `.dark` class. (The sidebar tokens are already integrated

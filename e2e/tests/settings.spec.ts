@@ -18,6 +18,21 @@ test('theme mode and preset persist across reloads', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('data-mode', 'light')
 })
 
+test('units preference persists across reloads', async ({ page }) => {
+  await page.goto('/settings')
+
+  await expect(page.getByTestId('unit-metric')).toHaveAttribute('aria-pressed', 'true')
+
+  await page.getByTestId('unit-imperial').click()
+  await expect(page.getByTestId('unit-imperial')).toHaveAttribute('aria-pressed', 'true')
+
+  await page.reload()
+  await expect(page.getByTestId('unit-imperial')).toHaveAttribute('aria-pressed', 'true')
+
+  // Leave the profile as we found it for other specs.
+  await page.getByTestId('unit-metric').click()
+})
+
 test('backup export downloads a JSON file', async ({ page }) => {
   await page.goto('/settings')
 

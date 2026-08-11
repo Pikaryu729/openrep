@@ -42,6 +42,7 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
 
 afterEach(() => {
   vi.resetAllMocks()
+  localStorage.clear()
 })
 
 function renderWithClient(ui: ReactElement) {
@@ -75,6 +76,18 @@ describe('WorkoutDetailPage', () => {
     expect(within(table).getByText('Back Squat')).toBeInTheDocument()
     expect(within(table).getByText('Deadlift')).toBeInTheDocument()
     expect(within(table).getByText('140')).toBeInTheDocument()
+  })
+
+  it('renders weights in pounds when imperial units are selected', async () => {
+    localStorage.setItem('openrep.units', 'imperial')
+    mockHappyPath()
+
+    renderWithClient(<WorkoutDetailPage workoutId={7} />)
+
+    const table = await screen.findByRole('table')
+    expect(within(table).getByText('Weight (lb)')).toBeInTheDocument()
+    expect(within(table).getByText('220.5')).toBeInTheDocument()
+    expect(within(table).getByText('308.6')).toBeInTheDocument()
   })
 
   it('adds a set with the next set_order', async () => {

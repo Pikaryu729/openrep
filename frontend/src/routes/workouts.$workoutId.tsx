@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ApiError, api, type Exercise, type SetEntry } from '@/lib/api'
+import { displayToKg, kgToDisplay, useUnits, weightUnit } from '@/lib/units'
 
 export const Route = createFileRoute('/workouts/$workoutId')({
   component: WorkoutDetailRoute,
@@ -27,6 +28,7 @@ function WorkoutDetailRoute() {
 export function WorkoutDetailPage({ workoutId }: { workoutId: number }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const units = useUnits()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const workoutQuery = useQuery({
@@ -152,7 +154,7 @@ export function WorkoutDetailPage({ workoutId }: { workoutId: number }) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Exercise</TableHead>
-                  <TableHead>Weight (kg)</TableHead>
+                  <TableHead>Weight ({weightUnit(units)})</TableHead>
                   <TableHead>Reps</TableHead>
                   <TableHead>RPE</TableHead>
                   <TableHead />
@@ -225,9 +227,10 @@ function SetRow({
   next: SetEntry | null
   onChanged: () => void
 }) {
+  const units = useUnits()
   const [editing, setEditing] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [weight, setWeight] = useState(String(setEntry.weight_kg))
+  const [weight, setWeight] = useState(String(kgToDisplay(setEntry.weight_kg, units)))
   const [reps, setReps] = useState(String(setEntry.reps))
   const [rpe, setRpe] = useState(setEntry.rpe == null ? '' : String(setEntry.rpe))
 
@@ -266,7 +269,7 @@ function SetRow({
             type="number"
             step="0.5"
             min="0"
-            aria-label="Weight (kg)"
+            aria-label={`Weight (${weightUnit(units)})`}
             value={weight}
             onChange={(event) => setWeight(event.target.value)}
             className="w-22"
@@ -301,7 +304,7 @@ function SetRow({
               disabled={updateSet.isPending}
               onClick={() =>
                 updateSet.mutate({
-                  weight_kg: Number(weight),
+                  weight_kg: displayToKg(Number(weight), units),
                   reps: Number(reps),
                   rpe: rpe === '' ? null : Number(rpe),
                 })
@@ -321,7 +324,7 @@ function SetRow({
   return (
     <TableRow>
       <TableCell>{exerciseName}</TableCell>
-      <TableCell>{setEntry.weight_kg}</TableCell>
+      <TableCell>{kgToDisplay(setEntry.weight_kg, units)}</TableCell>
       <TableCell>{setEntry.reps}</TableCell>
       <TableCell className="text-muted-foreground">{setEntry.rpe ?? '—'}</TableCell>
       <TableCell>
@@ -348,7 +351,7 @@ function SetRow({
             variant="ghost"
             size="sm"
             onClick={() => {
-              setWeight(String(setEntry.weight_kg))
+              setWeight(String(kgToDisplay(setEntry.weight_kg, units)))
               setReps(String(setEntry.reps))
               setRpe(setEntry.rpe == null ? '' : String(setEntry.rpe))
               setEditing(true)
@@ -363,7 +366,7 @@ function SetRow({
         {confirmingDelete && (
           <ConfirmDialog
             title="Delete set?"
-            message={`${exerciseName} — ${setEntry.weight_kg} kg × ${setEntry.reps}`}
+            message={`${exerciseName} — ${kgToDisplay(setEntry.weight_kg, units)} ${weightUnit(units)} × ${setEntry.reps}`}
             confirmLabel="Delete"
             danger
             isPending={deleteSet.isPending}
@@ -388,6 +391,7 @@ function AddSetForm({
   sets: SetEntry[]
   onCreated: () => void
 }) {
+  const units = useUnits()
   const [exerciseId, setExerciseId] = useState<number>(exercises[0].id)
   const [weight, setWeight] = useState('')
   const [reps, setReps] = useState('')
@@ -404,7 +408,7 @@ function AddSetForm({
   const prefillFrom = (id: number) => {
     const lastOfExercise = [...sets].reverse().find((entry) => entry.exercise_id === id)
     if (lastOfExercise) {
-      setWeight(String(lastOfExercise.weight_kg))
+      setWeight(String(kgToDisplay(lastOfExercise.weight_kg, units)))
       setReps(String(lastOfExercise.reps))
     }
   }
@@ -420,7 +424,7 @@ function AddSetForm({
             createSet.mutate({
               workout_id: workoutId,
               exercise_id: exerciseId,
-              weight_kg: Number(weight),
+              weight_kg: displayToKg(Number(weight), units),
               reps: Number(reps),
               rpe: rpe === '' ? undefined : Number(rpe),
               set_order: sets.length ? Math.max(...sets.map((entry) => entry.set_order)) + 1 : 1,
@@ -448,7 +452,7 @@ function AddSetForm({
               </select>
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="add-set-weight">Weight (kg)</Label>
+              <Label htmlFor="add-set-weight">Weight ({weightUnit(units)})</Label>
               <Input
                 id="add-set-weight"
                 type="number"

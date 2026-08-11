@@ -4,12 +4,14 @@ import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { api } from '@/lib/api'
+import { kgToDisplay, useUnits, weightUnit } from '@/lib/units'
 
 export const Route = createFileRoute('/')({
   component: Dashboard,
 })
 
 function Dashboard() {
+  const units = useUnits()
   const { data, isLoading, error } = useQuery({
     queryKey: ['analytics', 'volume'],
     queryFn: api.analytics.volumeByDay,
@@ -38,7 +40,7 @@ function Dashboard() {
               <TableRow>
                 <TableHead>Date</TableHead>
                 <TableHead>Sets</TableHead>
-                <TableHead>Volume (kg)</TableHead>
+                <TableHead>Volume ({weightUnit(units)})</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -46,7 +48,7 @@ function Dashboard() {
                 <TableRow key={day.performed_on}>
                   <TableCell>{day.performed_on}</TableCell>
                   <TableCell>{day.total_sets}</TableCell>
-                  <TableCell>{day.total_volume_kg}</TableCell>
+                  <TableCell>{kgToDisplay(day.total_volume_kg, units)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

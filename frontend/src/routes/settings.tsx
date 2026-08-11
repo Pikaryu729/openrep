@@ -13,6 +13,7 @@ import {
   useTheme,
   type ThemeMode,
 } from '@/lib/theme'
+import { saveUnits, useUnits, type UnitSystem } from '@/lib/units'
 
 export const Route = createFileRoute('/settings')({
   component: SettingsPage,
@@ -30,6 +31,7 @@ export function SettingsPage() {
       <h1 className="mb-6 text-2xl font-semibold tracking-tight">Settings</h1>
       <div className="flex flex-col gap-4">
         <AppearanceCard />
+        <UnitsCard />
         <BackupCard />
       </div>
     </section>
@@ -128,6 +130,54 @@ function AppearanceCard() {
             </Button>
           )}
         </SettingsRow>
+      </CardContent>
+    </Card>
+  )
+}
+
+const UNIT_OPTIONS: { value: UnitSystem; label: string }[] = [
+  { value: 'metric', label: 'Metric (kg)' },
+  { value: 'imperial', label: 'Imperial (lb)' },
+]
+
+function UnitsCard() {
+  const units = useUnits()
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Units</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <SettingsRow label="Weight">
+          <div
+            className="inline-flex overflow-hidden rounded-md border bg-card"
+            role="group"
+            aria-label="Weight units"
+          >
+            {UNIT_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                data-testid={`unit-${option.value}`}
+                aria-pressed={units === option.value}
+                onClick={() => saveUnits(option.value)}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium transition-colors not-first:border-l',
+                  units === option.value
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </SettingsRow>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Weights are always stored in kilograms; this only changes how they are entered and
+          displayed.
+        </p>
       </CardContent>
     </Card>
   )
