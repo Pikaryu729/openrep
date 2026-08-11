@@ -1,0 +1,9 @@
+node_modules/
+.claude/settings.local.json
+
+# Local SQLite database (local-first: each user's data lives on their machine)
+*.db
+*.db-journal
+
+.env
+.DS_Store
