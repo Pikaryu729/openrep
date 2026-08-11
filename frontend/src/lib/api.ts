@@ -1,4 +1,7 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
+// Same-origin by default: the packaged app serves the API and this UI from one
+// process, and `pnpm dev` proxies /api to the backend (see vite.config.ts).
+// Override only to point at a backend elsewhere — include the /api suffix.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
 export class ApiError extends Error {
   status: number

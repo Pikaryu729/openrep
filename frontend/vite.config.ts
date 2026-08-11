@@ -23,6 +23,13 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // Keeps dev same-origin, matching how the packaged app serves both.
+    proxy: {
+      '/api': {
+        target: process.env.OPENREP_BACKEND_URL ?? 'http://127.0.0.1:8765',
+        changeOrigin: false,
+      },
+    },
   },
   test: {
     environment: 'jsdom',

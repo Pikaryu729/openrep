@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
 const FRONTEND_PORT = 5173
-const BACKEND_PORT = 8000
+const BACKEND_PORT = 8765
 
 export default defineConfig({
   testDir: './tests',
@@ -21,9 +21,9 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'uv run uvicorn app.main:app --port 8000',
+      command: `uv run uvicorn openrep.main:app --port ${BACKEND_PORT}`,
       cwd: '../backend',
-      url: `http://localhost:${BACKEND_PORT}/health`,
+      url: `http://localhost:${BACKEND_PORT}/api/health`,
       reuseExistingServer: !process.env.CI,
       env: {
         OPENREP_DATABASE_PATH: `${process.cwd()}/.tmp/e2e.db`,
@@ -34,8 +34,9 @@ export default defineConfig({
       command: 'pnpm --dir ../frontend dev',
       url: `http://localhost:${FRONTEND_PORT}`,
       reuseExistingServer: !process.env.CI,
+      // The UI calls same-origin /api; Vite proxies it to the backend.
       env: {
-        VITE_API_BASE_URL: `http://localhost:${BACKEND_PORT}`,
+        OPENREP_BACKEND_URL: `http://127.0.0.1:${BACKEND_PORT}`,
       },
       stdout: 'pipe',
     },
