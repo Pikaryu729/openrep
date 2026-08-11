@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  PNPM_VERSION: "11"
+  NODE_VERSION: "22"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  build:
+    name: Build and verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      # A tag that disagrees with the packaged version publishes something
+      # nobody can reproduce, so fail before anything is built.
+      - name: Tag must match the packaged version
+        working-directory: backend
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)"
+          if [ "$tag" != "$pkg" ]; then
+            echo "tag $tag does not match pyproject version $pkg"
+            exit 1
+          fi
+
+      - name: CHANGELOG must document this version
+        run: grep -q "^## \[${GITHUB_REF_NAME#v}\]" CHANGELOG.md
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Frontend tests
+        run: pnpm --dir frontend test
+
+      - name: Backend lint and tests
+        working-directory: backend
+        run: |
+          uv sync --locked
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run pytest
+
+      - name: Build sdist + wheel
+        run: ./scripts/build-dist.sh
+
+      - name: Install the wheel and smoke test it
+        run: ./scripts/smoke-wheel.sh backend/dist/openrep-*.whl
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: backend/dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/openrep
+    permissions:
+      # Trusted Publishing (OIDC) — no long-lived API token in secrets.
+      # Requires a pending publisher configured on PyPI before the first tag.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: GitHub Release
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

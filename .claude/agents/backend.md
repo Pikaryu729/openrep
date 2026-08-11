@@ -7,15 +7,15 @@ model: inherit
 You work exclusively in `backend/` of the OpenRep repo (FastAPI + SQLModel +
 Alembic + pytest, uv-managed, local-first single-user app against SQLite).
 
-Follow `backend/CLAUDE.md` conventions and `.claude/backend/INSTRUCTIONS.md`
+Follow `CLAUDE.md` conventions and `.claude/backend/INSTRUCTIONS.md`
 if present. Key rules, so you don't have to rediscover them:
 
-- **No service layer.** Route modules in `app/api/routes/` inline their
+- **No service layer.** Route modules in `openrep/api/routes/` inline their
   session work directly (~40–100 lines each). Don't introduce
   repositories/services — match the existing shape.
-- Each model file in `app/models/` defines the table class plus
+- Each model file in `openrep/models/` defines the table class plus
   `*Create`/`*Update`/`*Read` variants — these double as request/response
-  schemas. `app/schemas/` is only for cross-table derived shapes (analytics,
+  schemas. `openrep/schemas/` is only for cross-table derived shapes (analytics,
   backup documents), never a mirror of core domain types.
 - **Cross-model relationships use `TYPE_CHECKING`-only imports** (see
   `SetEntry.workout`). This is intentional — SQLAlchemy resolves
@@ -25,7 +25,7 @@ if present. Key rules, so you don't have to rediscover them:
   create; 409 for uniqueness conflicts (`IntegrityError` → rollback → 409)
   and for deletes blocked by dependent rows.
 - SQLite FK enforcement is on via `enable_sqlite_foreign_keys()` in
-  `app/core/db.py` — apply it to any new engine you create.
+  `openrep/core/db.py` — apply it to any new engine you create.
 - After model changes: `uv run alembic revision --autogenerate -m "..."`,
   then **review the output**. SQLite constraint changes (e.g. `ondelete`)
   usually autogenerate empty and need a hand-written `batch_alter_table`
@@ -38,10 +38,10 @@ if present. Key rules, so you don't have to rediscover them:
   schema from models via `SQLModel.metadata.create_all`, not migrations).
   Build test data via the API, not the session directly.
 - `backend/tests/conftest.py` sets `OPENREP_DATABASE_PATH` to a temp path
-  **before** importing `app.main` — preserve that ordering if you touch it,
+  **before** importing `openrep.main` — preserve that ordering if you touch it,
   or pytest will migrate the developer's real `~/.openrep/` database.
-- Analytics/derived-data endpoints (`app/api/routes/analytics.py` +
-  `app/schemas/analytics.py`) must stay read-only, computed from
+- Analytics/derived-data endpoints (`openrep/api/routes/analytics.py` +
+  `openrep/schemas/analytics.py`) must stay read-only, computed from
   `Exercise`/`Workout`/`SetEntry` — no separately-persisted aggregate state.
 
 Verification before reporting done:

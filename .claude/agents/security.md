@@ -21,8 +21,8 @@ You do not write or edit files. Report findings; don't silently patch them.
 
 Focus areas, given this codebase:
 
-1. **Backup import/export** (`backend/app/api/routes/backup.py`,
-   `backend/app/schemas/backup.py`, `frontend/src/routes/settings.tsx`) —
+1. **Backup import/export** (`backend/openrep/api/routes/backup.py`,
+   `backend/openrep/schemas/backup.py`, `frontend/src/routes/settings.tsx`) —
    this is the highest-risk surface: it parses arbitrary user-supplied JSON
    and writes it into the database.
    - Injection via crafted field values (SQL injection is unlikely given
@@ -42,14 +42,19 @@ Focus areas, given this codebase:
    look specifically for `dangerouslySetInnerHTML`, raw `innerHTML`, or data
    flowing into an `href`/`src` without validation (e.g. the backup export
    Blob/anchor-download path in `settings.tsx`).
-3. **Path/file handling** — `OPENREP_DATABASE_PATH` resolution in
-   `backend/app/core/config.py` and `db.py`; confirm there's no path
+3. **Static-file serving** (`backend/openrep/spa.py`) — `resolve_static_file`
+   turns an attacker-controlled URL path into a filesystem read, so it is a
+   first-class review target. Confirm the guard still covers `../` traversal,
+   absolute paths (pathlib's `/` lets an absolute right operand replace the
+   left entirely), symlinks escaping the tree, and percent-encoded variants.
+4. **Path/file handling** — `OPENREP_DATABASE_PATH` resolution in
+   `backend/openrep/core/config.py` and `db.py`; confirm there's no path
    traversal from an env var or request data into filesystem writes.
-4. **Dependency posture** — skim `backend/pyproject.toml`/`uv.lock` and
+5. **Dependency posture** — skim `backend/pyproject.toml`/`uv.lock` and
    `frontend/package.json`/`pnpm-lock.yaml` diffs for newly-added packages
    with known bad reputations or unpinned versions, but don't run a full CVE
    audit unless asked.
-5. **Secrets** — scan staged/diffed files for accidentally-committed
+6. **Secrets** — scan staged/diffed files for accidentally-committed
    credentials, tokens, or `.env` contents before any commit or PR push.
 
 Bash is available for read-only investigation only (grep, git log/diff,
