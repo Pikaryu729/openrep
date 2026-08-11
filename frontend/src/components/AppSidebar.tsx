@@ -45,10 +45,10 @@ export function AppSidebar() {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild size="lg">
+            <SidebarMenuButton asChild size="lg" className="h-16 justify-center">
               <Link to="/" aria-label="OpenRep home">
-                <LogoSymbol className="size-7" />
-                <LogoWordmark />
+                <LogoSymbol className="size-9" />
+                <LogoWordmark className="text-xl" />
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
