@@ -1,4 +1,6 @@
+import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,8 +9,12 @@ from openrep import __version__
 from openrep.api.routes import analytics, backup, exercises, sets, workouts
 from openrep.core.config import settings
 from openrep.core.migrate import run_migrations
+from openrep.spa import mount_spa
 
 API_PREFIX = "/api"
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -53,3 +59,12 @@ def health() -> dict[str, str]:
 
 
 app.include_router(api)
+
+# Registered last: the catch-all matches everything, and routes resolve in
+# registration order.
+if not mount_spa(app, STATIC_DIR, api_prefix=API_PREFIX):
+    logger.info(
+        "No bundled UI at %s — serving the API only. This is expected in a "
+        "source checkout; run scripts/build-dist.sh to bundle the frontend.",
+        STATIC_DIR,
+    )
