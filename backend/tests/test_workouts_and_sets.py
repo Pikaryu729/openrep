@@ -24,6 +24,51 @@ def test_create_workout_with_sets(client: TestClient):
     assert len(response.json()) == 1
 
 
+def test_get_set_by_id(client: TestClient):
+    exercise_id = _make_exercise(client)
+    workout_id = _make_workout(client)
+    created = client.post(
+        "/sets",
+        json={"workout_id": workout_id, "exercise_id": exercise_id, "weight_kg": 100, "reps": 5},
+    ).json()
+
+    response = client.get(f"/sets/{created['id']}")
+    assert response.status_code == 200
+    assert response.json()["weight_kg"] == 100
+
+    assert client.get("/sets/999").status_code == 404
+
+
+def test_create_set_with_missing_refs_404(client: TestClient):
+    exercise_id = _make_exercise(client)
+    workout_id = _make_workout(client)
+
+    response = client.post(
+        "/sets",
+        json={"workout_id": 999, "exercise_id": exercise_id, "weight_kg": 100, "reps": 5},
+    )
+    assert response.status_code == 404
+
+    response = client.post(
+        "/sets",
+        json={"workout_id": workout_id, "exercise_id": 999, "weight_kg": 100, "reps": 5},
+    )
+    assert response.status_code == 404
+
+
+def test_delete_workout_cascades_sets(client: TestClient):
+    exercise_id = _make_exercise(client)
+    workout_id = _make_workout(client)
+    client.post(
+        "/sets",
+        json={"workout_id": workout_id, "exercise_id": exercise_id, "weight_kg": 100, "reps": 5},
+    )
+
+    assert client.delete(f"/workouts/{workout_id}").status_code == 204
+    response = client.get("/sets", params={"workout_id": workout_id})
+    assert response.json() == []
+
+
 def test_analytics_personal_records(client: TestClient):
     exercise_id = _make_exercise(client)
     workout_id = _make_workout(client)

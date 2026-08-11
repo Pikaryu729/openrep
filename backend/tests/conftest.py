@@ -10,6 +10,7 @@ from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
 from app.api.deps import get_session
+from app.core.db import enable_sqlite_foreign_keys
 from app.main import app
 
 
@@ -20,6 +21,7 @@ def session_fixture():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+    enable_sqlite_foreign_keys(engine)
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
         yield session

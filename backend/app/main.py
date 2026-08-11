@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import analytics, exercises, sets, workouts
+from app.api.routes import analytics, backup, exercises, sets, workouts
 from app.core.config import settings
 from app.core.migrate import run_migrations
 
@@ -27,6 +27,7 @@ app.include_router(exercises.router)
 app.include_router(workouts.router)
 app.include_router(sets.router)
 app.include_router(analytics.router)
+app.include_router(backup.router)
 
 
 @app.get("/health")
