@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <rect x="0" y="0" width="1200" height="630" fill="#16181c"></rect>
+  <rect x="420" y="357" width="384" height="30" fill="#f7f6f3"></rect>
+  <rect x="582" y="357" width="60" height="30" fill="#d9481f"></rect>
+  <rect x="504" y="252" width="36" height="240" fill="#f7f6f3"></rect>
+  <rect x="504" y="252" width="78" height="36" fill="#f7f6f3"></rect>
+  <rect x="504" y="456" width="78" height="36" fill="#f7f6f3"></rect>
+  <rect x="684" y="252" width="36" height="240" fill="#f7f6f3"></rect>
+  <rect x="642" y="252" width="78" height="36" fill="#f7f6f3"></rect>
+  <rect x="642" y="456" width="78" height="36" fill="#f7f6f3"></rect>
+  <text x="600" y="520" font-family="IBM Plex Sans, Helvetica, Arial, sans-serif" font-size="76" letter-spacing="-2.7" text-anchor="middle" fill="#f7f6f3"><tspan font-weight="400">open</tspan><tspan font-weight="600">rep</tspan></text>
+  <text x="600" y="572" font-family="IBM Plex Mono, monospace" font-size="24" letter-spacing="3" text-anchor="middle" fill="#8b8880">LOCAL-FIRST STRENGTH TRACKER</text>
+</svg>

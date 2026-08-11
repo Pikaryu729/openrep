@@ -7,7 +7,7 @@ test('can log an exercise, a workout, and see it reflected in volume', async ({ 
   await page.getByPlaceholder('Exercise name').fill('Front Squat')
   await page.getByPlaceholder('Category (optional)').fill('legs')
   await page.getByRole('button', { name: 'Add' }).click()
-  await expect(page.getByText('Front Squat')).toBeVisible()
+  await expect(page.getByRole('cell', { name: 'Front Squat', exact: true })).toBeVisible()
 
   await page.goto('/workouts')
   await expect(page.getByRole('heading', { name: 'Workouts' })).toBeVisible()
