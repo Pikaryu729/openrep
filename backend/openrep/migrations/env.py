@@ -1,12 +1,12 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, pool
+from alembic import context
+from sqlalchemy import create_engine, pool
 from sqlmodel import SQLModel
 
-from alembic import context
-from app.core.config import settings
-from app.core.db import engine  # noqa: F401  (ensures database directory exists)
-from app.models import Exercise, SetEntry, Workout  # noqa: F401
+from openrep.core.config import settings
+from openrep.core.db import engine  # noqa: F401  (ensures database directory exists)
+from openrep.models import Exercise, SetEntry, Workout  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -17,8 +17,10 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-config.set_main_option("sqlalchemy.url", settings.database_url)
-
+# The URL is read from settings directly rather than round-tripped through the
+# config: set_main_option does not escape "%", so a database path containing one
+# would break ConfigParser interpolation. It also keeps this working when the
+# runtime builds a Config with no ini file at all (see openrep.core.migrate).
 target_metadata = SQLModel.metadata
 
 # other values from the config, defined by the needs of env.py,
@@ -39,9 +41,8 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
+        url=settings.database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -58,11 +59,10 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    # Deliberately not reusing openrep.core.db.engine: that one enables
+    # PRAGMA foreign_keys=ON, and Alembic's SQLite batch_alter_table rebuild
+    # needs foreign keys off to swap tables.
+    connectable = create_engine(settings.database_url, poolclass=pool.NullPool)
 
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)

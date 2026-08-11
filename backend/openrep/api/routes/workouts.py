@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from sqlmodel import select
 
-from app.api.deps import SessionDep
-from app.models.workout import Workout, WorkoutCreate, WorkoutRead, WorkoutUpdate
+from openrep.api.deps import SessionDep
+from openrep.models.workout import Workout, WorkoutCreate, WorkoutRead, WorkoutUpdate
 
 router = APIRouter(prefix="/workouts", tags=["workouts"])
 

@@ -7,3 +7,8 @@ node_modules/
 
 .env
 .DS_Store
+
+# Build artifacts
+backend/dist/
+backend/openrep/static/
+*.egg-info/

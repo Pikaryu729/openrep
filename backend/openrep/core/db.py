@@ -3,7 +3,7 @@ from collections.abc import Generator
 from sqlalchemy import Engine, event
 from sqlmodel import Session, create_engine
 
-from app.core.config import settings
+from openrep.core.config import settings
 
 settings.database_path.parent.mkdir(parents=True, exist_ok=True)
 

@@ -3,8 +3,8 @@ from typing import TYPE_CHECKING
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
-    from app.models.exercise import Exercise
-    from app.models.workout import Workout
+    from openrep.models.exercise import Exercise
+    from openrep.models.workout import Workout
 
 
 class SetEntryBase(SQLModel):

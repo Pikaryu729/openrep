@@ -2,9 +2,9 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
-from app.api.deps import SessionDep
-from app.models.exercise import Exercise, ExerciseCreate, ExerciseRead, ExerciseUpdate
-from app.models.set import SetEntry
+from openrep.api.deps import SessionDep
+from openrep.models.exercise import Exercise, ExerciseCreate, ExerciseRead, ExerciseUpdate
+from openrep.models.set import SetEntry
 
 router = APIRouter(prefix="/exercises", tags=["exercises"])
 

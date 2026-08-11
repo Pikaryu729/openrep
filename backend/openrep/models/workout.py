@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
-    from app.models.set import SetEntry
+    from openrep.models.set import SetEntry
 
 
 class WorkoutBase(SQLModel):

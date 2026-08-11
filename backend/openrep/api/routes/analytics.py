@@ -3,10 +3,10 @@ from collections import defaultdict
 from fastapi import APIRouter
 from sqlmodel import select
 
-from app.api.deps import SessionDep
-from app.models.set import SetEntry
-from app.models.workout import Workout
-from app.schemas.analytics import (
+from openrep.api.deps import SessionDep
+from openrep.models.set import SetEntry
+from openrep.models.workout import Workout
+from openrep.schemas.analytics import (
     ExercisePersonalRecords,
     SetHistoryPoint,
     VolumeByDay,

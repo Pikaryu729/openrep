@@ -3,9 +3,9 @@ from typing import Literal
 
 from sqlmodel import SQLModel
 
-from app.models.exercise import ExerciseRead
-from app.models.set import SetEntryRead
-from app.models.workout import WorkoutRead
+from openrep.models.exercise import ExerciseRead
+from openrep.models.set import SetEntryRead
+from openrep.models.workout import WorkoutRead
 
 BACKUP_VERSION = 1
 

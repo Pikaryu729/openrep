@@ -3,11 +3,11 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException
 from sqlmodel import delete, select
 
-from app.api.deps import SessionDep
-from app.models.exercise import Exercise
-from app.models.set import SetEntry
-from app.models.workout import Workout
-from app.schemas.backup import (
+from openrep.api.deps import SessionDep
+from openrep.models.exercise import Exercise
+from openrep.models.set import SetEntry
+from openrep.models.workout import Workout
+from openrep.schemas.backup import (
     BACKUP_VERSION,
     BackupDocument,
     BackupImportRequest,
