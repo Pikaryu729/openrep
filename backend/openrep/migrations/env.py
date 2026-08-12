@@ -6,7 +6,7 @@ from sqlmodel import SQLModel
 
 from openrep.core.config import settings
 from openrep.core.db import engine  # noqa: F401  (ensures database directory exists)
-from openrep.models import Exercise, SetEntry, Workout  # noqa: F401
+from openrep.models import DashboardConfig, Exercise, SetEntry, Workout  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
