@@ -9,6 +9,15 @@ class VolumeByDay(SQLModel):
     total_sets: int
 
 
+class CategoryVolume(SQLModel):
+    """Training volume grouped by the exercise's free-text category."""
+
+    category: str
+    total_volume_kg: float
+    total_sets: int
+    exercise_count: int
+
+
 class SetHistoryPoint(SQLModel):
     performed_on: date
     weight_kg: float

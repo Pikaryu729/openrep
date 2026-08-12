@@ -181,3 +181,142 @@ def test_analytics_volume_by_day(client: TestClient):
     assert response.status_code == 200
     body = response.json()
     assert body == [{"performed_on": "2026-08-05", "total_volume_kg": 500.0, "total_sets": 1}]
+
+
+def _seed_session(client: TestClient, day: str, exercise_id: int, weight: float, reps: int) -> int:
+    workout_id = _make_workout(client, performed_on=day)
+    client.post(
+        "/api/sets",
+        json={
+            "workout_id": workout_id,
+            "exercise_id": exercise_id,
+            "weight_kg": weight,
+            "reps": reps,
+        },
+    )
+    return workout_id
+
+
+def test_analytics_volume_range_is_inclusive(client: TestClient):
+    exercise_id = _make_exercise(client)
+    for day in ("2026-08-01", "2026-08-05", "2026-08-10"):
+        _seed_session(client, day, exercise_id, 50, 10)
+
+    body = client.get(
+        "/api/analytics/volume", params={"start": "2026-08-05", "end": "2026-08-10"}
+    ).json()
+    assert [row["performed_on"] for row in body] == ["2026-08-05", "2026-08-10"]
+
+    # No params is unchanged: all history.
+    assert len(client.get("/api/analytics/volume").json()) == 3
+
+
+def test_analytics_volume_rejects_inverted_range(client: TestClient):
+    response = client.get(
+        "/api/analytics/volume", params={"start": "2026-08-10", "end": "2026-08-01"}
+    )
+    assert response.status_code == 422
+
+
+def test_analytics_volume_by_category(client: TestClient):
+    squat = _make_exercise(client, name="Back Squat")  # legs
+    lunge = client.post("/api/exercises", json={"name": "Lunge", "category": "legs"}).json()["id"]
+    press = client.post(
+        "/api/exercises", json={"name": "Overhead Press", "category": "shoulders"}
+    ).json()["id"]
+    plain = client.post("/api/exercises", json={"name": "Plank"}).json()["id"]
+
+    _seed_session(client, "2026-08-01", squat, 100, 5)  # 500
+    _seed_session(client, "2026-08-02", lunge, 50, 10)  # 500 -> legs 1000
+    _seed_session(client, "2026-08-03", press, 40, 5)  # 200
+    _seed_session(client, "2026-08-04", plain, 10, 5)  # 50, uncategorized
+
+    body = client.get("/api/analytics/volume-by-category").json()
+    assert [row["category"] for row in body] == ["legs", "shoulders", "uncategorized"]
+    assert body[0]["total_volume_kg"] == 1000.0
+    assert body[0]["total_sets"] == 2
+    assert body[0]["exercise_count"] == 2
+    assert body[2]["category"] == "uncategorized"
+
+
+def test_analytics_volume_by_category_breaks_ties_on_name(client: TestClient):
+    # Equal volume: order must be deterministic, not whatever SQLite returns.
+    alpha = client.post("/api/exercises", json={"name": "A lift", "category": "zulu"}).json()["id"]
+    beta = client.post("/api/exercises", json={"name": "B lift", "category": "alpha"}).json()["id"]
+    _seed_session(client, "2026-08-01", alpha, 100, 5)
+    _seed_session(client, "2026-08-01", beta, 100, 5)
+
+    body = client.get("/api/analytics/volume-by-category").json()
+    assert [row["category"] for row in body] == ["alpha", "zulu"]
+
+
+def test_analytics_volume_by_category_respects_range_and_empty(client: TestClient):
+    assert client.get("/api/analytics/volume-by-category").json() == []
+
+    exercise_id = _make_exercise(client)
+    _seed_session(client, "2026-08-01", exercise_id, 100, 5)
+    _seed_session(client, "2026-08-20", exercise_id, 100, 5)
+
+    body = client.get("/api/analytics/volume-by-category", params={"start": "2026-08-15"}).json()
+    assert body[0]["total_sets"] == 1
+
+
+def test_workouts_limit_and_stable_same_day_order(client: TestClient):
+    ids = [_make_workout(client, performed_on="2026-08-01") for _ in range(3)]
+
+    body = client.get("/api/workouts", params={"limit": 2}).json()
+    assert len(body) == 2
+    # Newest-inserted first, and identical across repeated calls.
+    assert [w["id"] for w in body] == [ids[2], ids[1]]
+    assert client.get("/api/workouts", params={"limit": 2}).json() == body
+
+
+def test_workouts_date_window_is_inclusive(client: TestClient):
+    for day in ("2026-08-01", "2026-08-05", "2026-08-10"):
+        _make_workout(client, performed_on=day)
+
+    body = client.get("/api/workouts", params={"start": "2026-08-05", "end": "2026-08-10"}).json()
+    assert sorted(w["performed_on"] for w in body) == ["2026-08-05", "2026-08-10"]
+
+    assert (
+        client.get("/api/workouts", params={"start": "2026-08-10", "end": "2026-08-01"}).status_code
+        == 422
+    )
+
+
+def test_workouts_filtered_by_exercise_is_deduplicated(client: TestClient):
+    squat = _make_exercise(client, name="Back Squat")
+    press = client.post(
+        "/api/exercises", json={"name": "Overhead Press", "category": "shoulders"}
+    ).json()["id"]
+    squat_day = _make_workout(client, performed_on="2026-08-01")
+    for _ in range(3):  # three sets of the same lift in one workout
+        client.post(
+            "/api/sets",
+            json={"workout_id": squat_day, "exercise_id": squat, "weight_kg": 100, "reps": 5},
+        )
+    _seed_session(client, "2026-08-02", press, 40, 5)
+
+    body = client.get("/api/workouts", params={"exercise_id": squat}).json()
+    assert [w["id"] for w in body] == [squat_day]
+
+    # Unknown exercise is an empty result, not a 404 — matching list_sets.
+    assert client.get("/api/workouts", params={"exercise_id": 9999}).json() == []
+
+
+def test_workouts_filtered_by_category_and_combined(client: TestClient):
+    squat = _make_exercise(client, name="Back Squat")  # legs
+    press = client.post(
+        "/api/exercises", json={"name": "Overhead Press", "category": "shoulders"}
+    ).json()["id"]
+    old = _seed_session(client, "2026-08-01", squat, 100, 5)
+    _seed_session(client, "2026-08-20", squat, 100, 5)
+    _seed_session(client, "2026-08-02", press, 40, 5)
+
+    legs = client.get("/api/workouts", params={"category": "legs"}).json()
+    assert len(legs) == 2
+
+    combined = client.get(
+        "/api/workouts", params={"category": "legs", "end": "2026-08-10", "limit": 5}
+    ).json()
+    assert [w["id"] for w in combined] == [old]
