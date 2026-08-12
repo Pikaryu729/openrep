@@ -18,6 +18,13 @@ export function shortDate(iso: string): string {
   return parseIsoDate(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
+/** Compact large numbers so they stay on one line: 12480 → 12.5K. */
+export function compact(value: number): string {
+  return new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(
+    value,
+  )
+}
+
 /** `2026-08-11` → `Aug 11, 2026`. */
 export function longDate(iso: string): string {
   return parseIsoDate(iso).toLocaleDateString(undefined, {
