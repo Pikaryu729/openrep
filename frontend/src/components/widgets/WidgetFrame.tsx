@@ -93,7 +93,11 @@ export function WidgetFrame({
   return (
     <Card className={cn(editing && 'border-dashed')}>
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-        <CardTitle>{title}</CardTitle>
+        {/* A real heading, not just styled text: a dashboard of widgets is
+            exactly the case where heading navigation earns its keep. */}
+        <CardTitle asChild>
+          <h2>{title}</h2>
+        </CardTitle>
         {controls}
       </CardHeader>
       <CardContent>

@@ -260,6 +260,10 @@ function BackupCard() {
             Download backup JSON
           </Button>
         </SettingsRow>
+        <p className="text-muted-foreground text-xs">
+          This is your training data. Your dashboard layout is separate — export it from the
+          dashboard's Edit mode.
+        </p>
         {exportBackup.error && (
           <p className="text-sm text-destructive">{exportBackup.error.message}</p>
         )}

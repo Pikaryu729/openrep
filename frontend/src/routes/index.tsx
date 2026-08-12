@@ -1,54 +1,78 @@
-import { useQuery } from '@tanstack/react-query'
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute } from '@tanstack/react-router'
+import { useRef, useState } from 'react'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
-import { StatTile } from '@/components/StatTile'
-import { VolumeChart } from '@/components/VolumeChart'
+import { Modal } from '@/components/Modal'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { api, type VolumeByDay } from '@/lib/api'
-import { longDate, shortDate } from '@/lib/format'
-import { kgToDisplay, type UnitSystem, useUnits, weightUnit } from '@/lib/units'
+import { WidgetFrame } from '@/components/widgets/WidgetFrame'
+import { WidgetView, widgetTitle } from '@/components/widgets/WidgetView'
+import { api } from '@/lib/api'
+import {
+  DEFAULT_WIDGETS,
+  WIDGET_CATALOG,
+  buildDashboardFile,
+  createWidget,
+  fromFileWidgets,
+  moveWidget,
+  nextWidgetId,
+  parseDashboardFile,
+  toConfigPayload,
+  widgetsFromConfig,
+  type WidgetInstance,
+  type WidgetType,
+} from '@/lib/dashboard'
 
 export const Route = createFileRoute('/')({
   component: Dashboard,
 })
 
-/** Compact large numbers so a stat tile stays one line: 12480 → 12.5K. */
-function compact(value: number): string {
-  return new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(
-    value,
-  )
-}
-
-function summarise(data: VolumeByDay[], units: UnitSystem) {
-  const totalVolume = data.reduce((sum, day) => sum + day.total_volume_kg, 0)
-  const totalSets = data.reduce((sum, day) => sum + day.total_sets, 0)
-  return {
-    sessions: data.length,
-    totalSets,
-    totalVolume: kgToDisplay(totalVolume, units),
-    lastSession: data.length ? data[data.length - 1].performed_on : null,
-  }
+interface PendingImport {
+  widgets: WidgetInstance[]
+  fileName: string
+  dropped: number
+  unresolved: string[]
 }
 
 export function Dashboard() {
-  const units = useUnits()
-  const volumeQuery = useQuery({
-    queryKey: ['analytics', 'volume'],
-    queryFn: () => api.analytics.volumeByDay(),
+  const queryClient = useQueryClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // draft !== null IS edit mode: one piece of state, so there is no separate
+  // flag that can drift out of sync with it.
+  const [draft, setDraft] = useState<WidgetInstance[] | null>(null)
+  const [adding, setAdding] = useState(false)
+  const [confirmingCancel, setConfirmingCancel] = useState(false)
+  const [confirmingReset, setConfirmingReset] = useState(false)
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null)
+  const [fileError, setFileError] = useState<string | null>(null)
+
+  const configQuery = useQuery({
+    queryKey: ['dashboard', 'config'],
+    queryFn: api.dashboard.getConfig,
   })
-  const recordsQuery = useQuery({
-    queryKey: ['analytics', 'personal-records'],
-    queryFn: () => api.analytics.recentPersonalRecords(5),
+  // Needed to swap ids for names on export and to title pinned widgets.
+  const exercisesQuery = useQuery({ queryKey: ['exercises'], queryFn: api.exercises.list })
+
+  const saveConfig = useMutation({
+    mutationFn: (widgets: WidgetInstance[]) => api.dashboard.saveConfig(toConfigPayload(widgets)),
+    onSuccess: (config) => {
+      queryClient.setQueryData(['dashboard', 'config'], config)
+      setDraft(null)
+    },
+    // Deliberately no draft reset on error: a failed write must never cost the
+    // user their edits.
   })
 
-  if (volumeQuery.error) {
+  if (configQuery.error) {
     return (
-      <p className="text-destructive text-sm">Failed to load: {volumeQuery.error.message}</p>
+      <p className="text-destructive text-sm">
+        Could not load your dashboard: {configQuery.error.message}
+      </p>
     )
   }
-  if (!volumeQuery.data) {
+  if (!configQuery.data) {
     return (
       <section>
         <h1 className="mb-6 font-semibold text-2xl tracking-tight">Dashboard</h1>
@@ -57,96 +81,246 @@ export function Dashboard() {
     )
   }
 
-  const volume = volumeQuery.data
-  const stats = summarise(volume, units)
+  const stored = widgetsFromConfig(configQuery.data)
+  const saved = stored.widgets
+  const editing = draft !== null
+  const shown = draft ?? saved
+  const dirty = editing && JSON.stringify(draft) !== JSON.stringify(saved)
+  const exercises = exercisesQuery.data ?? []
+  const exerciseName = (id: number | null) =>
+    id == null ? null : (exercises.find((exercise) => exercise.id === id)?.name ?? null)
 
-  if (volume.length === 0) {
-    return (
-      <section>
-        <h1 className="mb-6 font-semibold text-2xl tracking-tight">Dashboard</h1>
-        <EmptyState
-          title="No workouts logged yet"
-          hint="Your training volume and personal records will show up here."
-          action={
-            <Button variant="outline" asChild>
-              <Link to="/workouts">Log a workout</Link>
-            </Button>
-          }
-        />
-      </section>
-    )
+  const exportLayout = () => {
+    const file = buildDashboardFile(shown, exercises)
+    const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const anchor = window.document.createElement('a')
+    anchor.href = url
+    anchor.download = `openrep-dashboard-${file.exported_at.slice(0, 10)}.json`
+    // Firefox only honours a programmatic click on an anchor that is in the
+    // document, and revoking in the same tick races the browser's blob fetch.
+    window.document.body.append(anchor)
+    anchor.click()
+    anchor.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 0)
+  }
+
+  const onFileChosen = async (file: File) => {
+    setFileError(null)
+    // Contents are in hand, so clear the input immediately: an unchanged value
+    // fires no change event, and re-picking a file is exactly what you do next.
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    try {
+      const parsed = parseDashboardFile(JSON.parse(await file.text()))
+      if (!parsed) {
+        setFileError('This file is not an OpenRep v1 dashboard layout.')
+        return
+      }
+      const result = fromFileWidgets(parsed.widgets, exercises)
+      setPendingImport({
+        widgets: result.widgets,
+        fileName: file.name,
+        dropped: result.dropped,
+        unresolved: result.unresolved,
+      })
+    } catch {
+      setFileError('Could not read that file as JSON.')
+    }
   }
 
   return (
     <section>
-      <h1 className="mb-6 font-semibold text-2xl tracking-tight">Dashboard</h1>
-
-      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile label="Sessions" value={String(stats.sessions)} />
-        <StatTile label="Sets logged" value={String(stats.totalSets)} />
-        <StatTile
-          label="Total volume"
-          value={compact(stats.totalVolume)}
-          unit={weightUnit(units)}
-        />
-        <StatTile
-          label="Last session"
-          value={stats.lastSession ? shortDate(stats.lastSession) : '—'}
-        />
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-semibold text-2xl tracking-tight">Dashboard</h1>
+        {editing ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
+              Add widget
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportLayout}>
+              Export layout
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+              Import layout
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setConfirmingReset(true)}>
+              Reset to default
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => (dirty ? setConfirmingCancel(true) : setDraft(null))}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={!dirty || saveConfig.isPending}
+              onClick={() => draft && saveConfig.mutate(draft)}
+            >
+              Save
+            </Button>
+          </div>
+        ) : (
+          <Button variant="outline" size="sm" onClick={() => setDraft(saved)}>
+            Edit dashboard
+          </Button>
+        )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Training volume ({weightUnit(units)} per session)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <VolumeChart data={volume} units={units} />
-        </CardContent>
-      </Card>
+      {/* Hidden so the toolbar button owns the affordance; kept mounted so the
+          ref is always there to click. */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/json,.json"
+        aria-label="Dashboard layout file"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          if (file) void onFileChosen(file)
+        }}
+      />
 
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle>Personal records</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {recordsQuery.error ? (
-            <p className="text-destructive text-sm">
-              Could not load records: {recordsQuery.error.message}
-            </p>
-          ) : !recordsQuery.data ? (
-            <Skeleton className="h-20 w-full" />
-          ) : recordsQuery.data.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              Log a set to see your best estimated 1RM per exercise.
-            </p>
-          ) : (
-            <ul className="flex list-none flex-col gap-2 p-0">
-              {recordsQuery.data.map((record) => (
-                <li key={record.exercise_id}>
-                  <Link
-                    to="/exercises/$exerciseId"
-                    params={{ exerciseId: String(record.exercise_id) }}
-                    className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 no-underline transition-colors hover:border-primary"
-                  >
-                    <span className="font-medium">{record.exercise_name}</span>
-                    <span className="flex items-baseline gap-3">
-                      <span className="text-muted-foreground text-xs">
-                        {longDate(record.achieved_on)}
-                      </span>
-                      <span className="font-semibold tabular-nums">
-                        {kgToDisplay(record.max_estimated_1rm_kg, units)}
-                        <span className="ml-1 font-normal text-muted-foreground text-xs">
-                          {weightUnit(units)}
-                        </span>
-                      </span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+      {saveConfig.error && (
+        <p className="mb-4 text-destructive text-sm">
+          Could not save your dashboard: {saveConfig.error.message}
+        </p>
+      )}
+      {fileError && <p className="mb-4 text-destructive text-sm">{fileError}</p>}
+      {stored.dropped > 0 && (
+        <p className="mb-4 text-muted-foreground text-sm">
+          {stored.dropped} widget{stored.dropped === 1 ? '' : 's'} from a newer version of OpenRep
+          cannot be shown. Saving will remove {stored.dropped === 1 ? 'it' : 'them'}.
+        </p>
+      )}
+
+      {shown.length === 0 ? (
+        <EmptyState
+          title="Your dashboard is empty"
+          hint="Add a widget to see your training at a glance."
+          action={
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!editing) setDraft(saved)
+                setAdding(true)
+              }}
+            >
+              Add widgets
+            </Button>
+          }
+        />
+      ) : (
+        <div className="flex flex-col gap-4">
+          {shown.map((widget, index) => (
+            <WidgetFrame
+              key={widget.id}
+              widget={widget}
+              title={widgetTitle(
+                widget,
+                widget.type === 'exercise_progress'
+                  ? exerciseName(widget.options.exercise_id)
+                  : null,
+              )}
+              editing={editing}
+              canMoveUp={index > 0}
+              canMoveDown={index < shown.length - 1}
+              onMove={(delta) => setDraft(moveWidget(shown, index, delta))}
+              onRemove={() => setDraft(shown.filter((entry) => entry.id !== widget.id))}
+              onChange={(next) =>
+                setDraft(shown.map((entry) => (entry.id === widget.id ? next : entry)))
+              }
+            >
+              <WidgetView widget={widget} />
+            </WidgetFrame>
+          ))}
+        </div>
+      )}
+
+      {adding && (
+        <Modal title="Add widget" onClose={() => setAdding(false)}>
+          <ul className="flex list-none flex-col gap-2 p-0">
+            {(Object.keys(WIDGET_CATALOG) as WidgetType[]).map((type) => (
+              <li
+                key={type}
+                className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+              >
+                <div>
+                  <p className="font-medium">{WIDGET_CATALOG[type].label}</p>
+                  <p className="text-muted-foreground text-sm">{WIDGET_CATALOG[type].description}</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label={`Add ${WIDGET_CATALOG[type].label}`}
+                  onClick={() => {
+                    setDraft([...shown, createWidget(type)])
+                    setAdding(false)
+                  }}
+                >
+                  Add
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </Modal>
+      )}
+
+      {confirmingCancel && (
+        <ConfirmDialog
+          title="Discard dashboard changes?"
+          message="Your edits since the last save will be lost."
+          confirmLabel="Discard"
+          danger
+          onConfirm={() => {
+            setDraft(null)
+            setConfirmingCancel(false)
+          }}
+          onCancel={() => setConfirmingCancel(false)}
+        />
+      )}
+
+      {confirmingReset && (
+        <ConfirmDialog
+          title="Reset to the default dashboard?"
+          message="This replaces your layout with the default widgets. You still have to save."
+          confirmLabel="Reset"
+          danger
+          onConfirm={() => {
+            setDraft(DEFAULT_WIDGETS.map((widget) => ({ ...widget, id: nextWidgetId() })))
+            setConfirmingReset(false)
+          }}
+          onCancel={() => setConfirmingReset(false)}
+        />
+      )}
+
+      {pendingImport && (
+        <ConfirmDialog
+          title="Replace your dashboard layout?"
+          message={[
+            `"${pendingImport.fileName}" has ${pendingImport.widgets.length} widget${
+              pendingImport.widgets.length === 1 ? '' : 's'
+            }.`,
+            pendingImport.dropped > 0
+              ? `${pendingImport.dropped} from a newer version will be dropped.`
+              : '',
+            pendingImport.unresolved.length > 0
+              ? `You don't have ${pendingImport.unresolved.join(', ')}, so those widgets need an exercise choosing.`
+              : '',
+            'You still have to save.',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          confirmLabel="Replace layout"
+          danger
+          onConfirm={() => {
+            setDraft(pendingImport.widgets)
+            setPendingImport(null)
+          }}
+          onCancel={() => setPendingImport(null)}
+        />
+      )}
     </section>
   )
 }
