@@ -19,7 +19,11 @@ test('builds a widget, previews it, and saves it', async ({ page }) => {
   const name = `Weekly tonnage ${stamp}`
 
   await page.goto('/widgets')
-  await page.getByRole('button', { name: /Create( your first)? widget/ }).click()
+  // The header's "Create widget" is always rendered; "Create your first widget"
+  // is the empty state's. A pattern matching both is a strict-mode violation on
+  // an empty database — which is every fresh checkout and every CI run, and not
+  // a local suite that has left widgets behind from an earlier run.
+  await page.getByRole('button', { name: 'Create widget', exact: true }).click()
 
   await expect(page.getByRole('heading', { name: 'Create a widget' })).toBeVisible()
   await page.getByLabel('Widget name').fill(name)
