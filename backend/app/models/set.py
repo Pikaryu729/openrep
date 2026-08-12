@@ -8,8 +8,8 @@ if TYPE_CHECKING:
 
 
 class SetEntryBase(SQLModel):
-    workout_id: int = Field(foreign_key="workout.id", index=True)
-    exercise_id: int = Field(foreign_key="exercise.id", index=True)
+    workout_id: int = Field(foreign_key="workout.id", index=True, ondelete="CASCADE")
+    exercise_id: int = Field(foreign_key="exercise.id", index=True, ondelete="RESTRICT")
     weight_kg: float
     reps: int
     rpe: float | None = None

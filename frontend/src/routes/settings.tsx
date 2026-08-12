@@ -1,0 +1,326 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute } from '@tanstack/react-router'
+import { useRef, useState } from 'react'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { api, type BackupDocument, type BackupImportSummary } from '@/lib/api'
+import { cn } from '@/lib/utils'
+import {
+  PRESET_ACCENTS,
+  THEME_PRESETS,
+  contrastColorFor,
+  useTheme,
+  type ThemeMode,
+} from '@/lib/theme'
+import { saveUnits, useUnits, type UnitSystem } from '@/lib/units'
+
+export const Route = createFileRoute('/settings')({
+  component: SettingsPage,
+})
+
+const MODES: { value: ThemeMode; label: string }[] = [
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'system', label: 'System' },
+]
+
+export function SettingsPage() {
+  return (
+    <section>
+      <h1 className="mb-6 text-2xl font-semibold tracking-tight">Settings</h1>
+      <div className="flex flex-col gap-4">
+        <AppearanceCard />
+        <UnitsCard />
+        <BackupCard />
+      </div>
+    </section>
+  )
+}
+
+function SettingsRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="min-w-32 text-sm font-medium text-muted-foreground">{label}</span>
+      {children}
+    </div>
+  )
+}
+
+function AppearanceCard() {
+  const { theme, update } = useTheme()
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Appearance</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <SettingsRow label="Mode">
+          <div
+            className="inline-flex overflow-hidden rounded-md border bg-card"
+            role="group"
+            aria-label="Color mode"
+          >
+            {MODES.map((mode) => (
+              <button
+                key={mode.value}
+                type="button"
+                data-testid={`mode-${mode.value}`}
+                aria-pressed={theme.mode === mode.value}
+                onClick={() => update({ mode: mode.value })}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium transition-colors not-first:border-l',
+                  theme.mode === mode.value
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
+        </SettingsRow>
+        <SettingsRow label="Theme">
+          <div className="flex flex-wrap gap-2">
+            {THEME_PRESETS.map((preset) => {
+              const selected = theme.preset === preset && !theme.accent
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  data-testid={`preset-${preset}`}
+                  aria-pressed={selected}
+                  onClick={() => update({ preset, accent: null, accentContrast: null })}
+                  className={cn(
+                    'inline-flex items-center gap-2 rounded-md border bg-card px-3 py-1.5 text-sm transition-colors',
+                    selected ? 'border-primary ring-[3px] ring-primary/25' : 'hover:bg-muted',
+                  )}
+                >
+                  <span
+                    className="size-3.5 rounded-full"
+                    style={{ background: PRESET_ACCENTS[preset] }}
+                  />
+                  {preset.charAt(0).toUpperCase() + preset.slice(1)}
+                </button>
+              )
+            })}
+          </div>
+        </SettingsRow>
+        <SettingsRow label="Custom accent">
+          <input
+            type="color"
+            aria-label="Custom accent color"
+            className="h-9 w-12 cursor-pointer rounded-md border bg-card p-1"
+            value={theme.accent ?? PRESET_ACCENTS[theme.preset]}
+            onChange={(event) =>
+              update({
+                accent: event.target.value,
+                accentContrast: contrastColorFor(event.target.value),
+              })
+            }
+          />
+          {theme.accent && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => update({ accent: null, accentContrast: null })}
+            >
+              Reset to preset accent
+            </Button>
+          )}
+        </SettingsRow>
+      </CardContent>
+    </Card>
+  )
+}
+
+const UNIT_OPTIONS: { value: UnitSystem; label: string }[] = [
+  { value: 'metric', label: 'Metric (kg)' },
+  { value: 'imperial', label: 'Imperial (lb)' },
+]
+
+function UnitsCard() {
+  const units = useUnits()
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Units</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <SettingsRow label="Weight">
+          <div
+            className="inline-flex overflow-hidden rounded-md border bg-card"
+            role="group"
+            aria-label="Weight units"
+          >
+            {UNIT_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                data-testid={`unit-${option.value}`}
+                aria-pressed={units === option.value}
+                onClick={() => saveUnits(option.value)}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium transition-colors not-first:border-l',
+                  units === option.value
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </SettingsRow>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Weights are always stored in kilograms; this only changes how they are entered and
+          displayed.
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
+interface PendingImport {
+  document: BackupDocument
+  fileName: string
+}
+
+function BackupCard() {
+  const queryClient = useQueryClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [mode, setMode] = useState<'merge' | 'replace'>('merge')
+  const [pending, setPending] = useState<PendingImport | null>(null)
+  const [fileError, setFileError] = useState<string | null>(null)
+  const [summary, setSummary] = useState<BackupImportSummary | null>(null)
+
+  const exportBackup = useMutation({
+    mutationFn: api.backup.exportData,
+    onSuccess: (document) => {
+      const blob = new Blob([JSON.stringify(document, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const anchor = window.document.createElement('a')
+      anchor.href = url
+      anchor.download = `openrep-backup-${document.exported_at.slice(0, 10)}.json`
+      anchor.click()
+      URL.revokeObjectURL(url)
+    },
+  })
+
+  const importBackup = useMutation({
+    mutationFn: (body: Parameters<typeof api.backup.importData>[0]) =>
+      api.backup.importData(body),
+    onSuccess: (result) => {
+      setSummary(result)
+      setPending(null)
+      queryClient.invalidateQueries()
+    },
+  })
+
+  const onFileChosen = async (file: File) => {
+    setFileError(null)
+    setSummary(null)
+    try {
+      const parsed = JSON.parse(await file.text()) as BackupDocument
+      if (parsed.app !== 'openrep' || parsed.version !== 1) {
+        setFileError('This file is not an OpenRep v1 backup.')
+        return
+      }
+      importBackup.reset()
+      setPending({ document: parsed, fileName: file.name })
+    } catch {
+      setFileError('Could not read that file as JSON.')
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Backup</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <SettingsRow label="Export">
+          <Button
+            variant="outline"
+            disabled={exportBackup.isPending}
+            onClick={() => exportBackup.mutate()}
+          >
+            Download backup JSON
+          </Button>
+        </SettingsRow>
+        {exportBackup.error && (
+          <p className="text-sm text-destructive">{exportBackup.error.message}</p>
+        )}
+
+        <SettingsRow label="Import">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            aria-label="Backup file"
+            className="text-sm file:mr-3 file:rounded-md file:border file:bg-card file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-muted"
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              if (file) void onFileChosen(file)
+            }}
+          />
+        </SettingsRow>
+        <SettingsRow label="Import mode">
+          <label className="text-sm">
+            <input
+              type="radio"
+              name="import-mode"
+              className="mr-1.5 accent-primary"
+              checked={mode === 'merge'}
+              onChange={() => setMode('merge')}
+            />
+            Merge — adds workouts from the backup; exercises are matched by name. Importing the
+            same file twice duplicates workouts.
+          </label>
+        </SettingsRow>
+        <SettingsRow label="">
+          <label className="text-sm">
+            <input
+              type="radio"
+              name="import-mode"
+              className="mr-1.5 accent-primary"
+              checked={mode === 'replace'}
+              onChange={() => setMode('replace')}
+            />
+            Replace — deletes everything first, then restores the backup.
+          </label>
+        </SettingsRow>
+        {fileError && <p className="text-sm text-destructive">{fileError}</p>}
+        {summary && (
+          <p className="text-sm text-muted-foreground">
+            Imported ({summary.mode}): {summary.exercises_created} exercises created,{' '}
+            {summary.exercises_matched} matched, {summary.workouts_created} workouts,{' '}
+            {summary.sets_created} sets.
+          </p>
+        )}
+
+        {pending && (
+          <ConfirmDialog
+            title={mode === 'replace' ? 'Replace all data?' : 'Merge backup?'}
+            message={
+              mode === 'replace'
+                ? `This deletes all current data, then restores "${pending.fileName}".`
+                : `This merges "${pending.fileName}" into your current data.`
+            }
+            confirmLabel={mode === 'replace' ? 'Replace everything' : 'Import'}
+            danger={mode === 'replace'}
+            isPending={importBackup.isPending}
+            error={importBackup.error ? importBackup.error.message : null}
+            onConfirm={() => importBackup.mutate({ mode, data: pending.document })}
+            onCancel={() => {
+              setPending(null)
+              if (fileInputRef.current) fileInputRef.current.value = ''
+            }}
+          />
+        )}
+      </CardContent>
+    </Card>
+  )
+}

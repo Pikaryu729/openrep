@@ -2,9 +2,37 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" media="(prefers-color-scheme: light)" />
+    <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <title>OpenRep</title>
+    <script>
+      // Apply the persisted theme before first paint to avoid a flash of the
+      // default look. Kept in sync with src/lib/theme.ts (openrep.theme key).
+      ;(function () {
+        var root = document.documentElement
+        try {
+          var theme = JSON.parse(localStorage.getItem('openrep.theme') || 'null') || {}
+          root.dataset.mode =
+            theme.mode === 'light' || theme.mode === 'dark'
+              ? theme.mode
+              : matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+          root.dataset.theme = theme.preset || 'graphite'
+          if (theme.accent) {
+            root.style.setProperty('--accent', theme.accent)
+            root.style.setProperty('--accent-contrast', theme.accentContrast || '#ffffff')
+          }
+        } catch (error) {
+          root.dataset.mode = 'light'
+          root.dataset.theme = 'graphite'
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

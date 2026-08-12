@@ -1,4 +1,6 @@
-import { Link, Outlet, createRootRoute } from '@tanstack/react-router'
+import { Outlet, createRootRoute } from '@tanstack/react-router'
+import { AppSidebar } from '@/components/AppSidebar'
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -6,17 +8,16 @@ export const Route = createRootRoute({
 
 function RootLayout() {
   return (
-    <div className="app-shell">
-      <nav className="app-nav">
-        <Link to="/" activeOptions={{ exact: true }}>
-          Dashboard
-        </Link>
-        <Link to="/workouts">Workouts</Link>
-        <Link to="/exercises">Exercises</Link>
-      </nav>
-      <main className="app-main">
-        <Outlet />
-      </main>
-    </div>
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset>
+        <header className="flex h-14 items-center gap-2 border-b px-4">
+          <SidebarTrigger />
+        </header>
+        <main className="max-w-4xl p-8">
+          <Outlet />
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }

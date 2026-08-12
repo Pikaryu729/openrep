@@ -1,8 +1,10 @@
 from fastapi import APIRouter, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from app.api.deps import SessionDep
 from app.models.exercise import Exercise, ExerciseCreate, ExerciseRead, ExerciseUpdate
+from app.models.set import SetEntry
 
 router = APIRouter(prefix="/exercises", tags=["exercises"])
 
@@ -16,7 +18,11 @@ def list_exercises(session: SessionDep) -> list[Exercise]:
 def create_exercise(exercise: ExerciseCreate, session: SessionDep) -> Exercise:
     db_exercise = Exercise.model_validate(exercise)
     session.add(db_exercise)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=409, detail="An exercise with this name already exists")
     session.refresh(db_exercise)
     return db_exercise
 
@@ -37,7 +43,11 @@ def update_exercise(exercise_id: int, update: ExerciseUpdate, session: SessionDe
     for key, value in update.model_dump(exclude_unset=True).items():
         setattr(exercise, key, value)
     session.add(exercise)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=409, detail="An exercise with this name already exists")
     session.refresh(exercise)
     return exercise
 
@@ -47,5 +57,10 @@ def delete_exercise(exercise_id: int, session: SessionDep) -> None:
     exercise = session.get(Exercise, exercise_id)
     if exercise is None:
         raise HTTPException(status_code=404, detail="Exercise not found")
+    in_use = session.exec(
+        select(SetEntry.id).where(SetEntry.exercise_id == exercise_id).limit(1)
+    ).first()
+    if in_use is not None:
+        raise HTTPException(status_code=409, detail="Exercise is used by existing sets")
     session.delete(exercise)
     session.commit()
