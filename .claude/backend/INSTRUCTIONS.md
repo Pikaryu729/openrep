@@ -11,6 +11,11 @@
   `app` directly.** One process serves the API and the SPA, so a bare-root
   route is either shadowed by the SPA catch-all or collides outright with a
   frontend route (`/exercises` and `/workouts` are both).
+- **No service layer, but pure computation is not a service layer.** Shared
+  formulas (`core/formulas.py`) and the custom-widget query engine
+  (`core/widget_query.py`) are libraries of pure functions that routes call —
+  they orchestrate no session work. Keep it that way: if a `core/` module starts
+  committing transactions, it has become the thing this rule forbids.
 - Error conventions: 404 for missing rows and dangling FK references on
   create; 409 for uniqueness conflicts (`IntegrityError` → rollback → 409) and
   for deletes blocked by dependent rows.

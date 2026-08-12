@@ -57,6 +57,25 @@ network blip reads as data loss. If a widget stores an `exercise_id`, it must
 also resolve it against the `['exercises']` list: the history endpoint answers
 a deleted exercise with `[]`, not a 404.
 
+### User-created widgets
+
+`custom` is the one widget type whose definition is not in the catalog: its
+options are just `{ widget_id }`, and the query, visualization and title belong
+to a row in `custom_widget` (see CLAUDE.md). Consequences:
+
+- The Add-widget dialog lists saved widgets individually and never offers the
+  bare `custom` type — see `BUILT_IN_TYPES` in `routes/index.tsx`.
+- `WidgetEditor.tsx` renders itself from `GET /api/widgets/fields`. Do not
+  hardcode fields, operators or aggregates in the client; add them to
+  `backend/openrep/schemas/widget_query.py` and they appear here.
+- `lib/widgetQuery.ts` is the client half: blanks the editor starts from, the
+  human phrasing of a query, and how a result row becomes a chart or a table.
+  The server stays the authority on what is *legal* and re-validates everything;
+  `queryProblems()` exists only so the editor can disable Save and say why.
+- A custom placement resolves its `widget_id` against the `['widgets']` list for
+  the same reason a pinned exercise does: a deleted widget must read as deleted,
+  not as an empty chart.
+
 ### Known deliberate exception
 
 The exercise picker uses a styled **native `<select>`** (see
@@ -80,6 +99,14 @@ Theme tokens live in `src/index.css` (Tailwind v4, no config file):
   persisted user themes and the FOUC boot script break.
 - Tailwind's `dark:` variant is bound to `[data-mode='dark']` via
   `@custom-variant`, not to `prefers-color-scheme`.
+- **`--chart-1..4` are a fourth axis, not derived from `--accent`.** They are
+  the categorical series colors for charts plotting more than one thing (only
+  custom widgets, so far). `--accent` is any hue the user typed into settings,
+  so series identity cannot depend on it. The four steps are *validated*, not
+  chosen by eye — lightness band, chroma floor, all-pairs CVD and normal-vision
+  ΔE, contrast against both surfaces, in both modes. Re-run those checks before
+  changing one. Single-series charts still use `--accent`; assignment is by slot
+  order and never cycles.
 - The API client calls **same-origin `/api`** by default (`src/lib/api.ts`);
   `pnpm dev` proxies `/api` to the backend, and the packaged app serves both
   from one process. `VITE_API_BASE_URL` is an override only, and must include
