@@ -41,6 +41,7 @@ instructions:
 ```bash
 uv sync                                          # install deps
 uv run uvicorn openrep.main:app --reload --port 8765  # dev server (auto-migrates on startup)
+uv run fastapi dev openrep/main.py --port 8765   # same thing via fastapi-cli (dev group)
 uv run pytest                                    # all tests
 uv run pytest tests/test_exercises.py::test_create_and_list_exercise  # single test
 uv run ruff check . && uv run ruff format .      # lint + format
@@ -135,6 +136,14 @@ built UI from one process. Consequences worth knowing before you change things:
 - Artifacts are built **only** via `./scripts/build-dist.sh`, which verifies
   the UI and migrations actually landed inside the wheel and sdist;
   `./scripts/smoke-wheel.sh` then installs and exercises it for real.
+- **Runtime deps use plain `fastapi`, never the `[standard]` extra.**
+  `[project.dependencies]` is what `uv tool install openrep` puts on a user's
+  machine, and the extra adds ~15 MB of packages nothing here imports — no
+  `UploadFile`/`Form` (python-multipart), no `EmailStr`, no templates — plus
+  `sentry-sdk` and `fastapi-cloud-cli`, which are odd freight for an app whose
+  pitch is that nothing leaves your machine. Serving comes from
+  `uvicorn[standard]`, a real dependency. `fastapi-cli` is in the **dev group**
+  so `uv run fastapi dev` still works without shipping any of that.
 
 **Frontend routing is file-based** (TanStack Router): every file under
 `src/routes/` maps directly to a URL path, and `src/routes/__root.tsx` is the
