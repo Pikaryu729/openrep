@@ -15,5 +15,8 @@ test('can log an exercise, a workout, and see it reflected in volume', async ({ 
   await expect(page.locator('li').first()).toBeVisible()
 
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Training volume' })).toBeVisible()
+  // Deliberately layout-independent: the dashboard is user-composable, so any
+  // assertion naming a specific widget breaks the moment someone reorders or
+  // removes one. The page heading is the stable landmark.
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
 })

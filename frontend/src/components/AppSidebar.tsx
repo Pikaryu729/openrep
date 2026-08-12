@@ -83,7 +83,7 @@ export function AppSidebar() {
 function RecentWorkoutsGroup() {
   const { data: workouts, isLoading } = useQuery({
     queryKey: ['workouts'],
-    queryFn: api.workouts.list,
+    queryFn: () => api.workouts.list(),
   })
   const recent = workouts?.slice(0, RECENT_WORKOUTS_COUNT) ?? []
 

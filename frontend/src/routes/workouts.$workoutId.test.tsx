@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../lib/api'
@@ -17,6 +17,7 @@ vi.mock('../lib/api', async (importOriginal) => {
         create: vi.fn(),
         update: vi.fn(),
         delete: vi.fn(),
+        reorder: vi.fn(),
       },
     },
   }
@@ -47,7 +48,10 @@ afterEach(() => {
 
 function renderWithClient(ui: ReactElement) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>)
+  return {
+    ...render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>),
+    queryClient,
+  }
 }
 
 const workout = { id: 7, performed_on: '2026-08-01', notes: null, created_at: '2026-08-01T10:00:00Z' }
@@ -139,7 +143,7 @@ describe('WorkoutDetailPage', () => {
 
   it('reorders sets by swapping set_order with the adjacent row', async () => {
     mockHappyPath()
-    vi.mocked(api.sets.update).mockResolvedValue(sets[0])
+    vi.mocked(api.sets.reorder).mockResolvedValue(sets)
 
     renderWithClient(<WorkoutDetailPage workoutId={7} />)
     const table = await screen.findByRole('table')
@@ -147,10 +151,67 @@ describe('WorkoutDetailPage', () => {
     const secondRow = within(table).getByText('Deadlift').closest('tr')!
     fireEvent.click(within(secondRow).getByRole('button', { name: 'Move set up' }))
 
-    await vi.waitFor(() => {
-      expect(api.sets.update).toHaveBeenCalledWith(11, { set_order: 1 })
-      expect(api.sets.update).toHaveBeenCalledWith(10, { set_order: 2 })
-    })
+    // One atomic request, so the rows never briefly share a set_order.
+    await vi.waitFor(() =>
+      expect(api.sets.reorder).toHaveBeenCalledWith([
+        { id: 11, set_order: 1 },
+        { id: 10, set_order: 2 },
+      ]),
+    )
+  })
+
+  it('surfaces a failed sets fetch instead of an empty state', async () => {
+    // The bug this guards: `setsQuery.data ?? []` rendered "No sets yet",
+    // i.e. a network blip looked like the user's logged sets had vanished.
+    vi.mocked(api.workouts.get).mockResolvedValue(workout)
+    vi.mocked(api.exercises.list).mockResolvedValue(exercises)
+    vi.mocked(api.sets.listByWorkout).mockRejectedValue(new Error('network down'))
+
+    renderWithClient(<WorkoutDetailPage workoutId={7} />)
+
+    expect(await screen.findByText(/network down/)).toBeInTheDocument()
+    expect(screen.queryByText('No sets yet')).not.toBeInTheDocument()
+  })
+
+  it('surfaces a failed exercises fetch instead of the empty-library prompt', async () => {
+    vi.mocked(api.workouts.get).mockResolvedValue(workout)
+    vi.mocked(api.sets.listByWorkout).mockResolvedValue(sets)
+    vi.mocked(api.exercises.list).mockRejectedValue(new Error('network down'))
+
+    renderWithClient(<WorkoutDetailPage workoutId={7} />)
+
+    expect(await screen.findByText(/network down/)).toBeInTheDocument()
+    expect(screen.queryByText('No exercises in your library')).not.toBeInTheDocument()
+  })
+
+  it('falls back to the first exercise when the selected one disappears', async () => {
+    // The exercises list refetches on window focus; a <select> whose value
+    // matches no option displays the first, so the stale id must not be POSTed.
+    mockHappyPath()
+    vi.mocked(api.sets.create).mockResolvedValue(sets[0])
+
+    const { queryClient } = renderWithClient(<WorkoutDetailPage workoutId={7} />)
+    await screen.findByRole('table')
+
+    const form = screen.getByRole('heading', { name: 'Add set' }).closest('div')!
+    fireEvent.change(within(form).getByLabelText('Exercise'), { target: { value: '2' } })
+
+    // Deadlift (id 2) is deleted elsewhere and the shared ['exercises'] query
+    // refetches without it — what refetchOnWindowFocus does in the real app.
+    act(() => queryClient.setQueryData(['exercises'], [exercises[0]]))
+    await vi.waitFor(() =>
+      expect(within(form).getByLabelText('Exercise')).toHaveValue(String(exercises[0].id)),
+    )
+
+    fireEvent.change(within(form).getByLabelText('Weight (kg)'), { target: { value: '100' } })
+    fireEvent.change(within(form).getByLabelText('Reps'), { target: { value: '5' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Add set' }))
+
+    await vi.waitFor(() =>
+      expect(api.sets.create).toHaveBeenCalledWith(
+        expect.objectContaining({ exercise_id: exercises[0].id }),
+      ),
+    )
   })
 
   it('disables reorder at the boundaries', async () => {

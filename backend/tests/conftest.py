@@ -9,9 +9,9 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
-from app.api.deps import get_session
-from app.core.db import enable_sqlite_foreign_keys
-from app.main import app
+from openrep.api.deps import get_session
+from openrep.core.db import enable_sqlite_foreign_keys
+from openrep.main import app
 
 
 @pytest.fixture(name="session")

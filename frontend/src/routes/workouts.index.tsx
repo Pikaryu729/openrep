@@ -14,7 +14,10 @@ export const Route = createFileRoute('/workouts/')({
 })
 
 function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10)
+  // Deliberately not toISOString(): that is the UTC date, so an evening
+  // session west of Greenwich would default to tomorrow and a morning session
+  // east of it to yesterday. Workouts are keyed by the day you trained.
+  return new Date().toLocaleDateString('en-CA')
 }
 
 export function WorkoutsPage() {
@@ -25,7 +28,7 @@ export function WorkoutsPage() {
 
   const { data: workouts, error: listError } = useQuery({
     queryKey: ['workouts'],
-    queryFn: api.workouts.list,
+    queryFn: () => api.workouts.list(),
   })
 
   const createWorkout = useMutation({

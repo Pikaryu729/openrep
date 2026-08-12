@@ -39,6 +39,24 @@ adding another UI dependency.
   the bar follows `currentColor` and the center plate follows the user's
   `--accent`.
 
+## Dashboard widgets
+
+The dashboard is user-composable. To add a widget type:
+
+1. Add a member to the `WidgetInstance` union in `src/lib/dashboard.ts`, with
+   its options interface and a `WIDGET_CATALOG` entry (label, description,
+   `defaultOptions`, and a `normalizeOptions` that validates **per field** the
+   way `loadTheme` does — an unknown value falls back, it does not throw).
+2. Satisfy the two exhaustive switches: `WidgetView.tsx` (render) and
+   `WidgetOptionsForm.tsx` (configure). The union is discriminated, so the
+   compiler names both for you.
+
+Widgets never use `?? []` on query data — see `WidgetState`. An empty array is
+indistinguishable from a pending or failed fetch, and rendering "no data" for a
+network blip reads as data loss. If a widget stores an `exercise_id`, it must
+also resolve it against the `['exercises']` list: the history endpoint answers
+a deleted exercise with `[]`, not a 404.
+
 ### Known deliberate exception
 
 The exercise picker uses a styled **native `<select>`** (see
@@ -62,6 +80,11 @@ Theme tokens live in `src/index.css` (Tailwind v4, no config file):
   persisted user themes and the FOUC boot script break.
 - Tailwind's `dark:` variant is bound to `[data-mode='dark']` via
   `@custom-variant`, not to `prefers-color-scheme`.
+- The API client calls **same-origin `/api`** by default (`src/lib/api.ts`);
+  `pnpm dev` proxies `/api` to the backend, and the packaged app serves both
+  from one process. `VITE_API_BASE_URL` is an override only, and must include
+  the `/api` suffix. Note `frontend/.env` is gitignored — a stale value there
+  silently overrides the default.
 - Units preference (`openrep.units` in localStorage, `src/lib/units.ts`):
   weights are ALWAYS stored and sent to the API in kilograms; convert only at
   the display/input boundary via `kgToDisplay`/`displayToKg`/`useUnits`.

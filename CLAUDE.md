@@ -13,7 +13,8 @@ multi-tenancy, no cloud sync. See README.md for the pitch and stack summary.
 ## Repo layout
 
 ```
-backend/   FastAPI + SQLModel + Alembic + pytest   (uv-managed)
+backend/   FastAPI + SQLModel + Alembic + pytest   (uv-managed, ships as the
+           `openrep` wheel: package dir is backend/openrep/)
 frontend/  Vite + React + TanStack Router/Query     (pnpm workspace member)
 e2e/       Playwright, drives frontend + backend    (pnpm workspace member)
 ```
@@ -39,7 +40,8 @@ instructions:
 
 ```bash
 uv sync                                          # install deps
-uv run uvicorn app.main:app --reload --port 8000 # dev server (auto-migrates on startup)
+uv run uvicorn openrep.main:app --reload --port 8765  # dev server (auto-migrates on startup)
+uv run fastapi dev openrep/main.py --port 8765   # same thing via fastapi-cli (dev group)
 uv run pytest                                    # all tests
 uv run pytest tests/test_exercises.py::test_create_and_list_exercise  # single test
 uv run ruff check . && uv run ruff format .      # lint + format
@@ -50,7 +52,7 @@ uv run alembic upgrade head                      # apply migrations manually (ra
 ### Frontend (`cd frontend`)
 
 ```bash
-pnpm dev                       # dev server on :5173 (expects backend on :8000)
+pnpm dev                       # dev server on :5173 (proxies /api to :8765)
 pnpm build                     # typecheck + production build
 pnpm test                      # vitest run
 pnpm exec vitest run src/lib/api.test.ts  # single test file
@@ -58,7 +60,8 @@ pnpm lint                      # oxlint
 ```
 
 `VITE_API_BASE_URL` (see `frontend/.env.example`) points the frontend at the
-backend; defaults to `http://localhost:8000`.
+backend. It defaults to same-origin `/api`; `pnpm dev` proxies that to the
+backend, so the override is rarely needed (and must include `/api`).
 
 ### E2E (`cd e2e`)
 
@@ -75,8 +78,8 @@ root/sudo).
 
 ## Architecture notes
 
-**Migrations run automatically.** `app/main.py`'s FastAPI `lifespan` calls
-`app.core.migrate.run_migrations()` on every startup, which runs
+**Migrations run automatically.** `openrep/main.py`'s FastAPI `lifespan` calls
+`openrep.core.migrate.run_migrations()` on every startup, which runs
 `alembic upgrade head` programmatically against whatever `OPENREP_DATABASE_PATH`
 resolves to. This is deliberate for a local-first single-user app — there's no
 separate deploy step where someone would remember to run migrations. You still
@@ -85,17 +88,17 @@ a model; you just don't need to apply them manually.
 
 Because startup always migrates the *real* configured database,
 `backend/tests/conftest.py` sets `OPENREP_DATABASE_PATH` to a fresh temp
-directory *before* importing `app.main` — otherwise running pytest would
+directory *before* importing `openrep.main` — otherwise running pytest would
 create/migrate a file under the developer's real `~/.openrep/`. Preserve that
 ordering (env var set → then import app modules) if you touch conftest.py.
 
-**Domain model** (`backend/app/models/`): `Exercise`, `Workout`, `SetEntry`.
+**Domain model** (`backend/openrep/models/`): `Exercise`, `Workout`, `SetEntry`.
 A `SetEntry` belongs to one `Workout` and one `Exercise`, and carries
 `weight_kg` / `reps` / `rpe` / `set_order`. Each SQLModel class file defines a
 `*Base`/table class plus `*Create`/`*Update`/`*Read` variants — the same
 SQLModel classes serve as both the ORM table and the FastAPI request/response
 schemas, so there's no separate `schemas/` mirror of the core domain types
-(`app/schemas/` is only used for cross-table *derived* data like analytics).
+(`openrep/schemas/` is only used for cross-table *derived* data like analytics).
 
 **Cross-model relationships use `TYPE_CHECKING`-only imports** (e.g.
 `SetEntry.workout: "Workout"` with `Workout` imported only under
@@ -103,15 +106,55 @@ schemas, so there's no separate `schemas/` mirror of the core domain types
 `Relationship()` string targets via the shared declarative registry at
 mapper-configuration time, not via Python's import system, so no runtime
 import is needed as long as all three model modules get imported somewhere
-before the app runs a query (`app/models/__init__.py` does this). Don't
+before the app runs a query (`openrep/models/__init__.py` does this). Don't
 "fix" apparent circular-import gaps here by adding runtime imports.
 
-**Analytics/derived-data endpoints** live in `app/api/routes/analytics.py` +
-`app/schemas/analytics.py` (personal records, volume-by-day, estimated 1RM via
+**The dashboard config is the one persisted table that is not training data.**
+`openrep/models/dashboard.py` holds a single row whose `widgets` column is an
+opaque JSON array. The server validates structure (unique ids, size caps,
+version) but has **no widget catalog** — that lives in the client
+(`frontend/src/lib/dashboard.ts`), which is what lets a layout written by a
+newer OpenRep round-trip through an older server. It is deliberately **outside
+the backup document**: `BackupDocument` is training data, backup import remaps
+exercise ids (which widgets store), and restoring last month's backup should
+not rearrange your dashboard. Layouts export separately, referencing exercises
+by name so they are portable between databases.
+
+**Analytics/derived-data endpoints** live in `openrep/api/routes/analytics.py` +
+`openrep/schemas/analytics.py` (personal records, volume-by-day, estimated 1RM via
 the Epley formula). This is the intended growth point for the "complex data
 analysis" side of the product — keep these endpoints read-only, computed from
 `Exercise`/`Workout`/`SetEntry`, rather than introducing separately-persisted
 aggregate state.
+
+**Packaging & the single-process story.** `backend/` ships as the `openrep`
+wheel (`uv tool install openrep` → `openrep`), which serves the API *and* the
+built UI from one process. Consequences worth knowing before you change things:
+
+- The package is `openrep`, not `app` — claiming top-level `app` in
+  site-packages is a landmine.
+- **All API routes live under `/api`**, registered on a parent `APIRouter` in
+  `openrep/main.py`. Never mount a router on `app` directly: bare-root paths
+  are shadowed by the SPA catch-all, and `/exercises` and `/workouts` are
+  *frontend* routes. `/api/docs`, `/api/redoc`, `/api/openapi.json` too.
+- Alembic lives at `openrep/migrations/` so it ships inside the wheel.
+  `run_migrations()` builds its `Config` in code; `backend/alembic.ini` exists
+  only for the dev `alembic` CLI and is deliberately *not* distributed.
+- `openrep/spa.py` serves the frontend from `openrep/static/` (generated by
+  `scripts/build-dist.sh`, gitignored). It degrades to API-only when that
+  directory is absent, which is the normal state of a source checkout. Its
+  path-traversal guard is user-input-driven — treat it as security-sensitive.
+- Artifacts are built **only** via `./scripts/build-dist.sh`, which verifies
+  the UI and migrations actually landed inside the wheel and sdist;
+  `./scripts/smoke-wheel.sh` then installs and exercises it for real.
+- **Runtime deps use plain `fastapi`, never the `[standard]` extra.**
+  `[project.dependencies]` is what `uv tool install openrep` puts on a user's
+  machine, and the extra adds ~15 MB of packages nothing here imports — no
+  `UploadFile`/`Form` (python-multipart), no `EmailStr`, no templates — plus
+  `sentry-sdk` and `fastapi-cloud-cli`, which are odd freight for an app whose
+  pitch is that nothing leaves your machine. Serving comes from
+  `uvicorn[standard]`, a real dependency. `fastapi-cli` is in the **dev group**
+  so `uv run fastapi dev` still works without shipping any of that.
 
 **Frontend routing is file-based** (TanStack Router): every file under
 `src/routes/` maps directly to a URL path, and `src/routes/__root.tsx` is the
