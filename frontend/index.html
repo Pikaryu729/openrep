@@ -12,18 +12,34 @@
     <script>
       // Apply the persisted theme before first paint to avoid a flash of the
       // default look. Kept in sync with src/lib/theme.ts (openrep.theme key).
+      //
+      // This script does no theme math on purpose: saveTheme() precomputes the
+      // full CSS-variable map for both modes into `vars`, so all that is left
+      // here is picking a mode and replaying it. Anything cleverer would be a
+      // second implementation of resolveColors() that could drift from the
+      // first. `accent`/`accentContrast` are the v1 shape, still honoured so a
+      // theme saved before the editor existed does not flash on upgrade.
       ;(function () {
         var root = document.documentElement
         try {
           var theme = JSON.parse(localStorage.getItem('openrep.theme') || 'null') || {}
-          root.dataset.mode =
+          var mode =
             theme.mode === 'light' || theme.mode === 'dark'
               ? theme.mode
               : matchMedia('(prefers-color-scheme: dark)').matches
                 ? 'dark'
                 : 'light'
+          root.dataset.mode = mode
           root.dataset.theme = theme.preset || 'graphite'
-          if (theme.accent) {
+
+          var vars = theme.vars && theme.vars[mode]
+          if (vars) {
+            for (var name in vars) {
+              if (Object.prototype.hasOwnProperty.call(vars, name)) {
+                root.style.setProperty(name, vars[name])
+              }
+            }
+          } else if (theme.accent) {
             root.style.setProperty('--accent', theme.accent)
             root.style.setProperty('--accent-contrast', theme.accentContrast || '#ffffff')
           }

@@ -7,26 +7,46 @@
 /* ---------------------------------------------------------------------------
    Theme tokens.
 
-   Three orthogonal axes, all set on <html>:
-     - data-mode="light|dark"   → neutral scale (backgrounds, text, borders)
-     - data-theme="<preset>"    → accent color pair (--accent/--accent-contrast)
-     - inline --accent override → custom accent picked by the user (settings)
-   The boot script in index.html applies persisted values before first paint.
+   Axes, all set on <html>:
+     - data-mode="light|dark"  → the neutral scale below
+     - data-theme="<preset>"   → which preset is active. Informational only:
+                                 presets are DATA now (src/lib/themePresets.ts),
+                                 not CSS blocks, because a preset can patch
+                                 forty-odd tokens across two modes.
+     - inline custom properties → the resolved theme, written by
+                                  src/lib/theme.ts and replayed before first
+                                  paint by the boot script in index.html.
+
+   The values here are the base layer — what OpenRep looks like before any
+   preset or user override. They must stay in sync with BASE_LIGHT / BASE_DARK
+   in src/lib/themeTokens.ts, which is what the settings editor reads to show
+   you a token's starting value.
 
    shadcn/ui components consume the standard shadcn token names; our brand
-   accent feeds them through --primary below.
+   accent feeds them through --primary in the @theme block below.
+
+   NAMING TRAP: `--accent` is OUR brand color and is the older name — it feeds
+   shadcn's `--color-primary`. shadcn's own "accent" (subtle hover washes) is
+   `--ui-accent`, which defaults to the neutral muted scale. Never point
+   `--color-accent` at `--accent`, and never rename `--accent`: persisted user
+   themes and the boot script both depend on it.
 --------------------------------------------------------------------------- */
 
 :root {
   --radius: 0.625rem;
-  /* The sidebar highlight follows the user's brand accent. */
-  --sidebar-primary: var(--accent);
-  --sidebar-primary-foreground: var(--accent-contrast);
-  --sidebar-ring: var(--accent);
+
+  /* Typography and spacing, overridable per theme. */
+  --app-font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --app-font-serif: Georgia, 'Times New Roman', serif;
+  --app-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  --app-letter-spacing: 0em;
+  --app-spacing: 0.25rem;
 }
 
 :root[data-mode='light'] {
   color-scheme: light;
+  --accent: #3f3f46;
+  --accent-contrast: #ffffff;
   --background: #f6f6f7;
   --foreground: #1c1c21;
   --card: #ffffff;
@@ -37,18 +57,42 @@
   --secondary-foreground: #1c1c21;
   --muted: #efeff1;
   --muted-foreground: #6e6e78;
+  --ui-accent: #efeff1;
+  --ui-accent-foreground: #1c1c21;
   --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
   --border: #e2e2e6;
   --input: #e2e2e6;
+  --ring: #3f3f46;
   --sidebar: #ffffff;
   --sidebar-foreground: #1c1c21;
+  --sidebar-primary: #3f3f46;
+  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #efeff1;
   --sidebar-accent-foreground: #1c1c21;
   --sidebar-border: #e2e2e6;
+  --sidebar-ring: #3f3f46;
+
+  /* Chart series: Okabe-Ito shifted -0.12 in OKLCH lightness. Per-mode because
+     one set cannot clear 3:1 against both a near-white and a near-black
+     surface. See the CHART SERIES note in src/lib/themeTokens.ts. */
+  --chart-1: #004e8c;
+  --chart-2: #ac3700;
+  --chart-3: #007951;
+  --chart-4: #a45582;
+  --chart-5: #2a8ec1;
+
+  --sh-xs: 0px 0.5px 1.5px 0px rgba(0, 0, 0, 0.07);
+  --sh-sm: 0px 1px 3px 0px rgba(0, 0, 0, 0.1);
+  --sh-md: 0px 1.5px 6px 0px rgba(0, 0, 0, 0.11);
+  --sh-lg: 0px 2.5px 12px 0px rgba(0, 0, 0, 0.12);
+  --sh-xl: 0px 4px 24px 0px rgba(0, 0, 0, 0.13);
 }
 
 :root[data-mode='dark'] {
   color-scheme: dark;
+  --accent: #a1a1aa;
+  --accent-contrast: #18181b;
   --background: #131316;
   --foreground: #ececf0;
   --card: #1c1c21;
@@ -59,32 +103,42 @@
   --secondary-foreground: #ececf0;
   --muted: #26262c;
   --muted-foreground: #9c9ca8;
+  --ui-accent: #26262c;
+  --ui-accent-foreground: #ececf0;
   --destructive: #f87171;
+  --destructive-foreground: #2a0a0a;
   --border: #32323a;
   --input: #32323a;
+  --ring: #a1a1aa;
   --sidebar: #1c1c21;
   --sidebar-foreground: #ececf0;
+  --sidebar-primary: #a1a1aa;
+  --sidebar-primary-foreground: #18181b;
   --sidebar-accent: #26262c;
   --sidebar-accent-foreground: #ececf0;
   --sidebar-border: #32323a;
+  --sidebar-ring: #a1a1aa;
+
+  /* Okabe-Ito shifted +0.10 in OKLCH lightness. */
+  --chart-1: #3491d3;
+  --chart-2: #f87e36;
+  --chart-3: #3fbe91;
+  --chart-4: #ee98c7;
+  --chart-5: #77d4ff;
+
+  --sh-xs: 0px 1px 2px 0px rgba(0, 0, 0, 0.28);
+  --sh-sm: 0px 2px 4px 0px rgba(0, 0, 0, 0.4);
+  --sh-md: 0px 3px 8px 0px rgba(0, 0, 0, 0.44);
+  --sh-lg: 0px 5px 16px 0px rgba(0, 0, 0, 0.48);
+  --sh-xl: 0px 8px 32px 0px rgba(0, 0, 0, 0.52);
 }
 
-/* Preset accents. Dark mode gets brighter variants where the light accent
-   would lose contrast against dark surfaces. */
-:root[data-theme='graphite'] { --accent: #3f3f46; --accent-contrast: #ffffff; }
-:root[data-theme='ocean']    { --accent: #0369a1; --accent-contrast: #ffffff; }
-:root[data-theme='forest']   { --accent: #15803d; --accent-contrast: #ffffff; }
-:root[data-theme='sunset']   { --accent: #c2410c; --accent-contrast: #ffffff; }
-:root[data-theme='orchid']   { --accent: #7c3aed; --accent-contrast: #ffffff; }
-
-:root[data-mode='dark'][data-theme='graphite'] { --accent: #a1a1aa; --accent-contrast: #18181b; }
-:root[data-mode='dark'][data-theme='ocean']    { --accent: #38bdf8; --accent-contrast: #082032; }
-:root[data-mode='dark'][data-theme='forest']   { --accent: #4ade80; --accent-contrast: #052012; }
-:root[data-mode='dark'][data-theme='sunset']   { --accent: #fb923c; --accent-contrast: #2a1204; }
-:root[data-mode='dark'][data-theme='orchid']   { --accent: #a78bfa; --accent-contrast: #1e1235; }
-
 @theme inline {
-  --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: var(--app-font-sans);
+  --font-serif: var(--app-font-serif);
+  --font-mono: var(--app-font-mono);
+  --spacing: var(--app-spacing);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -98,18 +152,33 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  /* shadcn's subtle "accent" (hover washes) maps to the neutral muted scale,
-     NOT to our brand --accent — that name was ours first and is persisted. */
-  --color-accent: var(--muted);
-  --color-accent-foreground: var(--foreground);
+  /* shadcn's subtle "accent" (hover washes) maps to --ui-accent, which defaults
+     to the neutral muted scale — NOT to our brand --accent. */
+  --color-accent: var(--ui-accent);
+  --color-accent-foreground: var(--ui-accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
-  --color-ring: var(--accent);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  --shadow-xs: var(--sh-xs);
+  --shadow-sm: var(--sh-sm);
+  --shadow-md: var(--sh-md);
+  --shadow-lg: var(--sh-lg);
+  --shadow-xl: var(--sh-xl);
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -127,5 +196,6 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
+    letter-spacing: var(--app-letter-spacing);
   }
 }

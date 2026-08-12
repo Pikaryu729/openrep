@@ -67,17 +67,40 @@ unless the tests move to a driver that handles Radix Select.
 
 ## Theming contract
 
-Theme tokens live in `src/index.css` (Tailwind v4, no config file):
+The theme is fully user-customizable from Settings (a tweakcn-style editor).
+Base tokens live in `src/index.css` (Tailwind v4, no config file); everything
+above them is data.
 
-- `data-mode="light|dark"` on `<html>` selects the neutral scale;
-  `data-theme="<preset>"` selects the accent pair; a user-picked custom accent
-  is an inline `--accent` override set by `src/lib/theme.ts` and the boot
-  script in `index.html`. Keep those three axes orthogonal.
+- **One table drives the whole system**: `COLOR_TOKENS` in
+  `src/lib/themeTokens.ts`. The editor renders from it, `applyTheme` writes CSS
+  variables from it, and the CSS importer maps onto it. Add a token there and
+  all three follow — there is deliberately no exhaustive switch.
+- **Resolution is base → preset → user override**, collapsed by
+  `resolveColors()`. Presets (`src/lib/themePresets.ts`) are *sparse patches*,
+  not full palettes, and `data-theme` is now informational only — a preset can
+  patch forty-odd tokens across two modes, which is too much for a CSS block.
+  Tokens listed in `DERIVED_FROM` (ring, sidebar highlight, hover wash) follow
+  their source unless preset or user names them explicitly; that is what lets an
+  accent-only preset still move the focus rings.
 - **`--accent` / `--accent-contrast` are OUR brand variables** (persisted in
   localStorage under `openrep.theme`); they feed shadcn's `--color-primary`.
-  shadcn's own "accent" token (subtle hover washes) is mapped to the neutral
-  `--muted` — never map it to `--accent`, and never rename `--accent`, or
-  persisted user themes and the FOUC boot script break.
+  shadcn's own "accent" (subtle hover washes) is `--ui-accent`, which defaults
+  to the neutral `--muted` — never map it to `--accent`, and never rename
+  `--accent`, or persisted user themes and the FOUC boot script break. This is
+  also the one real trap when importing a theme: **tweakcn's `--primary` is our
+  `--accent`, and tweakcn's `--accent` is our `--ui-accent`**. `themeCss.ts`
+  exists to do that translation.
+- **`saveTheme()` precomputes the full CSS-variable map for both modes** into
+  the persisted `vars` field, so `index.html`'s boot script does zero theme
+  math. Anything cleverer in that script would be a second implementation of
+  `resolveColors()` free to drift from the first. Bump `THEME_SCHEMA_VERSION`
+  and extend the v1 migration if the persisted shape changes.
+- **Chart series colors are editable but audited, not locked.**
+  `src/lib/themeAudit.ts` re-runs WCAG contrast and dichromat-simulation checks
+  live and warns; it never refuses. Its ΔE thresholds are calibrated against
+  what Okabe-Ito actually achieves (~0.14 normal, ~0.069 simulated) — set them
+  higher and a known-good palette fails. Every shipped preset is asserted
+  warning-free in `themeAudit.test.ts`, so a new preset must pass it too.
 - Tailwind's `dark:` variant is bound to `[data-mode='dark']` via
   `@custom-variant`, not to `prefers-color-scheme`.
 - The API client calls **same-origin `/api`** by default (`src/lib/api.ts`);
@@ -90,8 +113,10 @@ Theme tokens live in `src/index.css` (Tailwind v4, no config file):
   the display/input boundary via `kgToDisplay`/`displayToKg`/`useUnits`.
 - When `shadcn add` injects new token blocks into `index.css`, fold them into
   our `:root[data-mode=...]` blocks and delete any generated `.dark { ... }`
-  block — we have no `.dark` class. (The sidebar tokens are already integrated
-  this way: `--sidebar-primary` follows `--accent`, neutrals per mode.)
+  block — we have no `.dark` class. If the new token should be user-editable,
+  add it to `COLOR_TOKENS` and to `BASE_LIGHT`/`BASE_DARK` as well; those base
+  maps must stay in sync with the CSS, since the editor reads them to show a
+  token's starting value.
 
 ## Testing conventions
 
