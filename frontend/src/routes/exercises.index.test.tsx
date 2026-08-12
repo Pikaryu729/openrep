@@ -3,7 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, api } from '../lib/api'
-import { ExercisesPage } from './exercises'
+import { ExercisesPage } from './exercises.index'
 
 vi.mock('../lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/api')>()
@@ -18,6 +18,24 @@ vi.mock('../lib/api', async (importOriginal) => {
         delete: vi.fn(),
       },
     },
+  }
+})
+
+vi.mock('@tanstack/react-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tanstack/react-router')>()
+  return {
+    ...actual,
+    Link: ({
+      to,
+      params: _params,
+      children,
+      ...rest
+    }: { to: string; params?: unknown; children?: React.ReactNode } & Record<string, unknown>) => (
+      <a href={to} {...rest}>
+        {children}
+      </a>
+    ),
+    useNavigate: () => vi.fn(),
   }
 })
 

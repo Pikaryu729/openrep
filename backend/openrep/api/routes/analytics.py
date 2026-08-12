@@ -1,13 +1,16 @@
 from collections import defaultdict
+from datetime import date
 
 from fastapi import APIRouter
 from sqlmodel import select
 
 from openrep.api.deps import SessionDep
+from openrep.models.exercise import Exercise
 from openrep.models.set import SetEntry
 from openrep.models.workout import Workout
 from openrep.schemas.analytics import (
     ExercisePersonalRecords,
+    RecentPersonalRecord,
     SetHistoryPoint,
     VolumeByDay,
 )
@@ -54,24 +57,72 @@ def exercise_personal_records(exercise_id: int, session: SessionDep) -> Exercise
         return ExercisePersonalRecords(
             exercise_id=exercise_id,
             max_weight_kg=None,
+            max_weight_achieved_on=None,
             max_estimated_1rm_kg=None,
+            max_estimated_1rm_achieved_on=None,
             max_volume_in_a_workout_kg=None,
+            max_volume_achieved_on=None,
         )
 
     volume_by_workout: dict = defaultdict(float)
-    max_weight = 0.0
-    max_1rm = 0.0
+    # A PR is dated to the *first* day it was reached — repeating a best lift
+    # later does not reset the record.
+    max_weight = max_1rm = 0.0
+    weight_on: date | None = None
+    rm_on: date | None = None
     for set_entry, performed_on in rows:
-        max_weight = max(max_weight, set_entry.weight_kg)
-        max_1rm = max(max_1rm, estimated_1rm(set_entry.weight_kg, set_entry.reps))
+        if set_entry.weight_kg > max_weight or weight_on is None:
+            max_weight, weight_on = set_entry.weight_kg, performed_on
+        elif set_entry.weight_kg == max_weight and performed_on < weight_on:
+            weight_on = performed_on
+
+        one_rm = estimated_1rm(set_entry.weight_kg, set_entry.reps)
+        if one_rm > max_1rm or rm_on is None:
+            max_1rm, rm_on = one_rm, performed_on
+        elif one_rm == max_1rm and performed_on < rm_on:
+            rm_on = performed_on
+
         volume_by_workout[performed_on] += set_entry.weight_kg * set_entry.reps
+
+    best_volume = max(volume_by_workout.values())
+    best_volume_on = min(day for day, total in volume_by_workout.items() if total == best_volume)
 
     return ExercisePersonalRecords(
         exercise_id=exercise_id,
         max_weight_kg=round(max_weight, 2),
+        max_weight_achieved_on=weight_on,
         max_estimated_1rm_kg=round(max_1rm, 2),
-        max_volume_in_a_workout_kg=round(max(volume_by_workout.values()), 2),
+        max_estimated_1rm_achieved_on=rm_on,
+        max_volume_in_a_workout_kg=round(best_volume, 2),
+        max_volume_achieved_on=best_volume_on,
     )
+
+
+@router.get("/personal-records", response_model=list[RecentPersonalRecord])
+def recent_personal_records(session: SessionDep, limit: int = 5) -> list[RecentPersonalRecord]:
+    """Best estimated 1RM per exercise, most recently set first."""
+    rows = session.exec(
+        select(SetEntry, Workout.performed_on, Exercise.name)
+        .join(Workout, SetEntry.workout_id == Workout.id)
+        .join(Exercise, SetEntry.exercise_id == Exercise.id)
+    ).all()
+
+    best: dict[int, RecentPersonalRecord] = {}
+    for set_entry, performed_on, exercise_name in rows:
+        one_rm = estimated_1rm(set_entry.weight_kg, set_entry.reps)
+        current = best.get(set_entry.exercise_id)
+        if current is None or one_rm > current.max_estimated_1rm_kg:
+            best[set_entry.exercise_id] = RecentPersonalRecord(
+                exercise_id=set_entry.exercise_id,
+                exercise_name=exercise_name,
+                max_estimated_1rm_kg=round(one_rm, 2),
+                achieved_on=performed_on,
+            )
+        elif one_rm == current.max_estimated_1rm_kg and performed_on < current.achieved_on:
+            current.achieved_on = performed_on
+
+    ordered = sorted(best.values(), key=lambda pr: (pr.achieved_on, pr.exercise_name), reverse=True)
+    return ordered[:limit]
 
 
 @router.get("/volume", response_model=list[VolumeByDay])

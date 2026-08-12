@@ -109,6 +109,64 @@ def test_analytics_personal_records(client: TestClient):
     body = response.json()
     assert body["max_weight_kg"] == 110
     assert body["max_volume_in_a_workout_kg"] == 100 * 5 + 110 * 1
+    assert body["max_weight_achieved_on"] == "2026-08-01"
+    assert body["max_volume_achieved_on"] == "2026-08-01"
+    # 100kg x 5 (Epley: 116.67) beats the heavier 110kg single.
+    assert body["max_estimated_1rm_kg"] == 116.67
+    assert body["max_estimated_1rm_achieved_on"] == "2026-08-01"
+
+
+def test_analytics_personal_records_empty(client: TestClient):
+    exercise_id = _make_exercise(client)
+    body = client.get(f"/api/analytics/exercises/{exercise_id}/personal-records").json()
+    assert body["max_weight_kg"] is None
+    assert body["max_weight_achieved_on"] is None
+
+
+def test_analytics_pr_dates_use_first_achievement(client: TestClient):
+    exercise_id = _make_exercise(client)
+    for day in ("2026-08-01", "2026-08-08"):
+        workout_id = _make_workout(client, performed_on=day)
+        client.post(
+            "/api/sets",
+            json={
+                "workout_id": workout_id,
+                "exercise_id": exercise_id,
+                "weight_kg": 100,
+                "reps": 5,
+            },
+        )
+
+    # The same best lift on both days: the record belongs to the first one.
+    body = client.get(f"/api/analytics/exercises/{exercise_id}/personal-records").json()
+    assert body["max_weight_achieved_on"] == "2026-08-01"
+    assert body["max_estimated_1rm_achieved_on"] == "2026-08-01"
+
+
+def test_analytics_recent_personal_records(client: TestClient):
+    squat = _make_exercise(client, name="Back Squat")
+    press = _make_exercise(client, name="Overhead Press")
+    old = _make_workout(client, performed_on="2026-08-01")
+    recent = _make_workout(client, performed_on="2026-08-09")
+    client.post(
+        "/api/sets",
+        json={"workout_id": old, "exercise_id": squat, "weight_kg": 100, "reps": 5},
+    )
+    client.post(
+        "/api/sets",
+        json={"workout_id": recent, "exercise_id": press, "weight_kg": 60, "reps": 3},
+    )
+
+    body = client.get("/api/analytics/personal-records").json()
+    assert [pr["exercise_name"] for pr in body] == ["Overhead Press", "Back Squat"]
+    assert body[0]["achieved_on"] == "2026-08-09"
+    assert body[1]["max_estimated_1rm_kg"] == 116.67
+
+    assert len(client.get("/api/analytics/personal-records", params={"limit": 1}).json()) == 1
+
+
+def test_analytics_recent_personal_records_empty(client: TestClient):
+    assert client.get("/api/analytics/personal-records").json() == []
 
 
 def test_analytics_volume_by_day(client: TestClient):

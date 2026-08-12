@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ApiError, api, type Exercise } from '@/lib/api'
 
-export const Route = createFileRoute('/exercises')({
+export const Route = createFileRoute('/exercises/')({
   component: ExercisesPage,
 })
 
@@ -142,7 +142,15 @@ export function ExercisesPage() {
               <TableBody>
                 {exercises.map((exercise) => (
                   <TableRow key={exercise.id}>
-                    <TableCell>{exercise.name}</TableCell>
+                    <TableCell>
+                      <Link
+                        to="/exercises/$exerciseId"
+                        params={{ exerciseId: String(exercise.id) }}
+                        className="font-medium underline-offset-4 hover:underline"
+                      >
+                        {exercise.name}
+                      </Link>
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{exercise.category}</TableCell>
                     <TableCell className="text-muted-foreground">{exercise.notes}</TableCell>
                     <TableCell>

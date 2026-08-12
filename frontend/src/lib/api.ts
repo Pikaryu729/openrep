@@ -56,6 +56,31 @@ export interface VolumeByDay {
   total_sets: number
 }
 
+export interface SetHistoryPoint {
+  performed_on: string
+  weight_kg: number
+  reps: number
+  rpe: number | null
+  estimated_1rm_kg: number
+}
+
+export interface ExercisePersonalRecords {
+  exercise_id: number
+  max_weight_kg: number | null
+  max_weight_achieved_on: string | null
+  max_estimated_1rm_kg: number | null
+  max_estimated_1rm_achieved_on: string | null
+  max_volume_in_a_workout_kg: number | null
+  max_volume_achieved_on: string | null
+}
+
+export interface RecentPersonalRecord {
+  exercise_id: number
+  exercise_name: string
+  max_estimated_1rm_kg: number
+  achieved_on: string
+}
+
 export interface BackupDocument {
   app: string
   version: number
@@ -112,6 +137,12 @@ export const api = {
   },
   analytics: {
     volumeByDay: () => request<VolumeByDay[]>('/analytics/volume'),
+    exerciseHistory: (exerciseId: number) =>
+      request<SetHistoryPoint[]>(`/analytics/exercises/${exerciseId}/history`),
+    exercisePersonalRecords: (exerciseId: number) =>
+      request<ExercisePersonalRecords>(`/analytics/exercises/${exerciseId}/personal-records`),
+    recentPersonalRecords: (limit = 5) =>
+      request<RecentPersonalRecord[]>(`/analytics/personal-records?limit=${limit}`),
   },
   backup: {
     exportData: () => request<BackupDocument>('/backup/export'),
