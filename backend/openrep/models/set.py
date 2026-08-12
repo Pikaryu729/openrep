@@ -38,3 +38,10 @@ class SetEntryUpdate(SQLModel):
 
 class SetEntryRead(SetEntryBase):
     id: int
+
+
+class SetOrderUpdate(SQLModel):
+    """One row's new position, for the bulk reorder endpoint."""
+
+    id: int
+    set_order: int

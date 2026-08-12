@@ -17,6 +17,7 @@ vi.mock('../lib/api', async (importOriginal) => {
         create: vi.fn(),
         update: vi.fn(),
         delete: vi.fn(),
+        reorder: vi.fn(),
       },
     },
   }
@@ -142,7 +143,7 @@ describe('WorkoutDetailPage', () => {
 
   it('reorders sets by swapping set_order with the adjacent row', async () => {
     mockHappyPath()
-    vi.mocked(api.sets.update).mockResolvedValue(sets[0])
+    vi.mocked(api.sets.reorder).mockResolvedValue(sets)
 
     renderWithClient(<WorkoutDetailPage workoutId={7} />)
     const table = await screen.findByRole('table')
@@ -150,10 +151,13 @@ describe('WorkoutDetailPage', () => {
     const secondRow = within(table).getByText('Deadlift').closest('tr')!
     fireEvent.click(within(secondRow).getByRole('button', { name: 'Move set up' }))
 
-    await vi.waitFor(() => {
-      expect(api.sets.update).toHaveBeenCalledWith(11, { set_order: 1 })
-      expect(api.sets.update).toHaveBeenCalledWith(10, { set_order: 2 })
-    })
+    // One atomic request, so the rows never briefly share a set_order.
+    await vi.waitFor(() =>
+      expect(api.sets.reorder).toHaveBeenCalledWith([
+        { id: 11, set_order: 1 },
+        { id: 10, set_order: 2 },
+      ]),
+    )
   })
 
   it('surfaces a failed sets fetch instead of an empty state', async () => {

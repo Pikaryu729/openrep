@@ -320,3 +320,53 @@ def test_workouts_filtered_by_category_and_combined(client: TestClient):
         "/api/workouts", params={"category": "legs", "end": "2026-08-10", "limit": 5}
     ).json()
     assert [w["id"] for w in combined] == [old]
+
+
+def test_reorder_sets_is_atomic(client: TestClient):
+    exercise_id = _make_exercise(client)
+    workout_id = _make_workout(client)
+    ids = [
+        client.post(
+            "/api/sets",
+            json={
+                "workout_id": workout_id,
+                "exercise_id": exercise_id,
+                "weight_kg": weight,
+                "reps": 5,
+                "set_order": order,
+            },
+        ).json()["id"]
+        for order, weight in enumerate((100, 120), start=1)
+    ]
+
+    # Swapping in one request means the two rows never briefly share a
+    # set_order, so no refetch can observe them in an intermediate order.
+    response = client.patch(
+        "/api/sets/reorder",
+        json=[{"id": ids[0], "set_order": 2}, {"id": ids[1], "set_order": 1}],
+    )
+    assert response.status_code == 200
+
+    listed = client.get("/api/sets", params={"workout_id": workout_id}).json()
+    assert [entry["id"] for entry in listed] == [ids[1], ids[0]]
+
+
+def test_reorder_rejects_unknown_set_without_partial_writes(client: TestClient):
+    exercise_id = _make_exercise(client)
+    workout_id = _make_workout(client)
+    set_id = client.post(
+        "/api/sets",
+        json={
+            "workout_id": workout_id,
+            "exercise_id": exercise_id,
+            "weight_kg": 100,
+            "reps": 5,
+            "set_order": 1,
+        },
+    ).json()["id"]
+
+    response = client.patch(
+        "/api/sets/reorder", json=[{"id": set_id, "set_order": 9}, {"id": 9999, "set_order": 1}]
+    )
+    assert response.status_code == 404
+    assert client.get(f"/api/sets/{set_id}").json()["set_order"] == 1

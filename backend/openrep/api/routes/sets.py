@@ -3,7 +3,13 @@ from sqlmodel import select
 
 from openrep.api.deps import SessionDep
 from openrep.models.exercise import Exercise
-from openrep.models.set import SetEntry, SetEntryCreate, SetEntryRead, SetEntryUpdate
+from openrep.models.set import (
+    SetEntry,
+    SetEntryCreate,
+    SetEntryRead,
+    SetEntryUpdate,
+    SetOrderUpdate,
+)
 from openrep.models.workout import Workout
 
 router = APIRouter(prefix="/sets", tags=["sets"])
@@ -31,6 +37,34 @@ def create_set(set_entry: SetEntryCreate, session: SessionDep) -> SetEntry:
     session.commit()
     session.refresh(db_set)
     return db_set
+
+
+# Declared before /{set_id} so "reorder" is never parsed as a set id.
+@router.patch("/reorder", response_model=list[SetEntryRead])
+def reorder_sets(updates: list[SetOrderUpdate], session: SessionDep) -> list[SetEntry]:
+    """Apply several set_order values in a single transaction.
+
+    Swapping two sets with two separate PATCHes leaves them briefly sharing a
+    set_order. A refetch landing in that window renders them in the other
+    order, so rows move under the user's cursor mid-interaction — an edit can
+    land on the row that just took the place of the one they clicked.
+    """
+    # Resolve everything first: a missing id must not leave earlier rows mutated.
+    entries: list[tuple[SetEntry, int]] = []
+    for update in updates:
+        entry = session.get(SetEntry, update.id)
+        if entry is None:
+            raise HTTPException(status_code=404, detail=f"Set {update.id} not found")
+        entries.append((entry, update.set_order))
+
+    for entry, set_order in entries:
+        entry.set_order = set_order
+        session.add(entry)
+    session.commit()
+
+    for entry, _ in entries:
+        session.refresh(entry)
+    return [entry for entry, _ in entries]
 
 
 @router.get("/{set_id}", response_model=SetEntryRead)

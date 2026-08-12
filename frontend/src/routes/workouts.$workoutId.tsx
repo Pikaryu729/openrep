@@ -267,9 +267,9 @@ function SetRow({
 
   const swapWith = useMutation({
     mutationFn: (other: SetEntry) =>
-      Promise.all([
-        api.sets.update(setEntry.id, { set_order: other.set_order }),
-        api.sets.update(other.id, { set_order: setEntry.set_order }),
+      api.sets.reorder([
+        { id: setEntry.id, set_order: other.set_order },
+        { id: other.id, set_order: setEntry.set_order },
       ]),
     onSuccess: onChanged,
   })

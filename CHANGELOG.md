@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A configurable dashboard. **Edit dashboard** turns the page into a draft you
+  can add widgets to, reorder, configure, and remove from; nothing persists
+  until you press Save, and Cancel discards. Six widgets ship: summary tiles,
+  training volume, personal records, exercise progress (top set and estimated
+  1RM for one exercise), recent workouts with filters, and volume by category.
+- Dashboard layouts export and import as JSON from the dashboard's Edit mode.
+  Exercises are referenced **by name** in the file, so a layout is portable
+  between databases — importing resolves names against your own library and
+  tells you about anything it could not match.
+- `GET /api/analytics/volume-by-category`, optional `start`/`end` on
+  `GET /api/analytics/volume`, and `limit`/`start`/`end`/`exercise_id`/
+  `category` filters on `GET /api/workouts`.
+
+### Fixed
+
+- The e2e suite no longer shares ports with the dev servers. It previously set
+  `reuseExistingServer` on 5173/8765, so a run would adopt whatever backend was
+  already listening — including one opened against the real
+  `~/.openrep/openrep.db` — and these specs create and delete rows.
+- `GET /api/workouts` breaks ties on id. Ordering by date alone left same-day
+  workouts in unspecified order, which became visible once `limit` could
+  truncate the list.
+- Reordering sets is now a single atomic request. Two separate PATCHes left the
+  two rows briefly sharing a `set_order`, so a refetch landing in that window
+  reordered them under the cursor — an edit could land on the row that had just
+  taken the place of the one you clicked.
+
 ## [0.1.0] - 2026-08-11
 
 First packaged release. OpenRep installs as a single command and runs as one

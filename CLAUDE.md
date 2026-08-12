@@ -109,6 +109,17 @@ import is needed as long as all three model modules get imported somewhere
 before the app runs a query (`openrep/models/__init__.py` does this). Don't
 "fix" apparent circular-import gaps here by adding runtime imports.
 
+**The dashboard config is the one persisted table that is not training data.**
+`openrep/models/dashboard.py` holds a single row whose `widgets` column is an
+opaque JSON array. The server validates structure (unique ids, size caps,
+version) but has **no widget catalog** — that lives in the client
+(`frontend/src/lib/dashboard.ts`), which is what lets a layout written by a
+newer OpenRep round-trip through an older server. It is deliberately **outside
+the backup document**: `BackupDocument` is training data, backup import remaps
+exercise ids (which widgets store), and restoring last month's backup should
+not rearrange your dashboard. Layouts export separately, referencing exercises
+by name so they are portable between databases.
+
 **Analytics/derived-data endpoints** live in `openrep/api/routes/analytics.py` +
 `openrep/schemas/analytics.py` (personal records, volume-by-day, estimated 1RM via
 the Epley formula). This is the intended growth point for the "complex data

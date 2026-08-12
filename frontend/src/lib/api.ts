@@ -180,6 +180,11 @@ export const api = {
       data: { weight_kg?: number; reps?: number; rpe?: number | null; set_order?: number },
     ) => request<SetEntry>(`/sets/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: number) => request<void>(`/sets/${id}`, { method: 'DELETE' }),
+    // One request, one transaction: two separate PATCHes leave the rows
+    // briefly sharing a set_order, and a refetch in that window reorders them
+    // under the user's cursor.
+    reorder: (updates: { id: number; set_order: number }[]) =>
+      request<SetEntry[]>('/sets/reorder', { method: 'PATCH', body: JSON.stringify(updates) }),
   },
   analytics: {
     volumeByDay: (range: DateRange = {}) =>
