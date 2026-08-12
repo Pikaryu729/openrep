@@ -36,7 +36,7 @@ export function Dashboard() {
   const units = useUnits()
   const volumeQuery = useQuery({
     queryKey: ['analytics', 'volume'],
-    queryFn: api.analytics.volumeByDay,
+    queryFn: () => api.analytics.volumeByDay(),
   })
   const recordsQuery = useQuery({
     queryKey: ['analytics', 'personal-records'],

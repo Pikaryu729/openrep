@@ -28,7 +28,7 @@ export function WorkoutsPage() {
 
   const { data: workouts, error: listError } = useQuery({
     queryKey: ['workouts'],
-    queryFn: api.workouts.list,
+    queryFn: () => api.workouts.list(),
   })
 
   const createWorkout = useMutation({
