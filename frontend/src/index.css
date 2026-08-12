@@ -83,6 +83,32 @@
 :root[data-mode='dark'][data-theme='sunset']   { --accent: #fb923c; --accent-contrast: #2a1204; }
 :root[data-mode='dark'][data-theme='orchid']   { --accent: #a78bfa; --accent-contrast: #1e1235; }
 
+/* ---------------------------------------------------------------------------
+   Categorical series colors, for charts that plot more than one thing at once.
+
+   A fourth axis, orthogonal to the three above, and deliberately NOT derived
+   from --accent: a custom widget can plot up to four metrics, --accent is any
+   hue the user typed into settings, and series identity cannot be left to
+   whether that hue happens to separate from its neighbours.
+
+   These four are fixed and validated, not picked by eye — OKLCH lightness
+   inside both mode bands, chroma above the gray floor, all-pairs OKLab ΔE
+   clear of the protan/deutan and normal-vision thresholds, and >= 3:1 contrast
+   against the card and page surfaces in both modes. They pass on the same
+   steps in light and dark, which is why there is no per-mode block. Re-run the
+   checks before changing any of them.
+
+   Single-series charts keep using --accent: one mark has no identity to
+   confuse, and the brand color belongs there. Assignment is by slot order and
+   never cycles — a fifth series would need a new slot, not a generated hue.
+--------------------------------------------------------------------------- */
+:root {
+  --chart-1: #1e6fd9;
+  --chart-2: #d55e00;
+  --chart-3: #009e73;
+  --chart-4: #a34d8f;
+}
+
 @theme inline {
   --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
   --color-background: var(--background);

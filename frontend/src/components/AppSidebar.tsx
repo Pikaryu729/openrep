@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
   ChevronRightIcon,
+  ChartNoAxesCombinedIcon,
   DumbbellIcon,
   HistoryIcon,
   LayoutDashboardIcon,
@@ -33,6 +34,7 @@ const NAV_ITEMS = [
   { title: 'Dashboard', to: '/', exact: true, icon: LayoutDashboardIcon },
   { title: 'Workouts', to: '/workouts', icon: NotebookPenIcon },
   { title: 'Exercises', to: '/exercises', icon: DumbbellIcon },
+  { title: 'Widgets', to: '/widgets', icon: ChartNoAxesCombinedIcon },
   { title: 'Settings', to: '/settings', icon: SettingsIcon },
 ] as const
 

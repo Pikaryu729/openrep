@@ -1,5 +1,3 @@
-import type { Exercise } from '@/lib/api'
-
 export const DASHBOARD_VERSION = 1
 export const MAX_WIDGETS = 24
 
@@ -32,6 +30,12 @@ export interface CategoryOptions {
   range_days: RangeDays
   max_categories: number
 }
+/** A placement of a widget the user built in the editor. The definition —
+ * query, visualization, title — lives in the `custom_widget` table; the layout
+ * only records which one goes here. */
+export interface CustomOptions {
+  widget_id: number | null
+}
 
 /**
  * A discriminated union rather than a Record<string, Definition<any>>: rendering
@@ -45,6 +49,7 @@ export type WidgetInstance =
   | { id: string; type: 'exercise_progress'; options: ProgressOptions }
   | { id: string; type: 'recent_workouts'; options: RecentOptions }
   | { id: string; type: 'category_breakdown'; options: CategoryOptions }
+  | { id: string; type: 'custom'; options: CustomOptions }
 
 export type WidgetType = WidgetInstance['type']
 export type OptionsFor<T extends WidgetType> = Extract<WidgetInstance, { type: T }>['options']
@@ -139,6 +144,15 @@ export const WIDGET_CATALOG: { [T in WidgetType]: CatalogEntry<T> } = {
       }
     },
   },
+  custom: {
+    label: 'Your widget',
+    // The Add-widget dialog lists saved custom widgets individually and never
+    // shows this entry, so the description only surfaces if one is somehow
+    // added without a target.
+    description: 'A widget you built in the widget editor.',
+    defaultOptions: { widget_id: null },
+    normalizeOptions: (raw) => ({ widget_id: pickId(asRecord(raw).widget_id) }),
+  },
 }
 
 const WIDGET_TYPES = Object.keys(WIDGET_CATALOG) as WidgetType[]
@@ -211,9 +225,10 @@ export function widgetsFromConfig(config: { version: number; widgets: unknown })
 }
 
 // --- portable file form ----------------------------------------------------
-// exercise_id is meaningless in another database, so the file references
-// exercises by name. Names are unique, which makes the match unambiguous —
-// the same semantics backup merge mode uses.
+// A row id is meaningless in another database, so the file references the rows
+// a widget points at by name. Names are unique for both exercises and custom
+// widgets, which makes the match unambiguous — the same semantics backup merge
+// mode uses.
 
 export interface DashboardFile {
   app: string
@@ -223,49 +238,85 @@ export interface DashboardFile {
   widgets: { id: string; type: string; options: Record<string, unknown> }[]
 }
 
-const NAME_KEYED: WidgetType[] = ['exercise_progress', 'recent_workouts']
+/** Anything a widget can point at by id: an exercise, or a custom widget. */
+export interface NamedRow {
+  id: number
+  name: string
+}
+
+export interface NameSources {
+  exercises: NamedRow[]
+  customWidgets: NamedRow[]
+}
+
+interface NameRef {
+  idKey: string
+  nameKey: string
+  source: keyof NameSources
+}
+
+/** Which widget types carry an id that has to travel as a name, and where the
+ * name comes from. A type absent here exports its options verbatim. */
+const NAME_REFS: Partial<Record<WidgetType, NameRef>> = {
+  exercise_progress: { idKey: 'exercise_id', nameKey: 'exercise_name', source: 'exercises' },
+  recent_workouts: { idKey: 'exercise_id', nameKey: 'exercise_name', source: 'exercises' },
+  custom: { idKey: 'widget_id', nameKey: 'widget_name', source: 'customWidgets' },
+}
 
 export function toFileWidgets(
   widgets: WidgetInstance[],
-  exercises: Exercise[],
+  sources: NameSources,
 ): DashboardFile['widgets'] {
-  const nameById = new Map(exercises.map((exercise) => [exercise.id, exercise.name]))
+  const nameById = {
+    exercises: new Map(sources.exercises.map((row) => [row.id, row.name])),
+    customWidgets: new Map(sources.customWidgets.map((row) => [row.id, row.name])),
+  }
+
   return widgets.map((widget) => {
-    if (!NAME_KEYED.includes(widget.type)) {
+    const ref = NAME_REFS[widget.type]
+    if (!ref) {
       return { id: widget.id, type: widget.type, options: { ...widget.options } }
     }
-    const { exercise_id: exerciseId, ...rest } = widget.options as { exercise_id: number | null }
+    const { [ref.idKey]: rowId, ...rest } = widget.options as unknown as Record<string, unknown>
     return {
       id: widget.id,
       type: widget.type,
       // An id that no longer resolves exports as an unconfigured widget rather
       // than a dead number.
-      options: { ...rest, exercise_name: exerciseId == null ? null : (nameById.get(exerciseId) ?? null) },
+      options: {
+        ...rest,
+        [ref.nameKey]:
+          typeof rowId === 'number' ? (nameById[ref.source].get(rowId) ?? null) : null,
+      },
     }
   })
 }
 
 export interface FromFileResult extends NormalizeResult {
-  /** Exercise names in the file that this library has no match for. */
+  /** Names in the file that this database has no match for. */
   unresolved: string[]
 }
 
 export function fromFileWidgets(
   raw: DashboardFile['widgets'],
-  exercises: Exercise[],
+  sources: NameSources,
 ): FromFileResult {
-  const idByName = new Map(exercises.map((exercise) => [exercise.name, exercise.id]))
+  const idByName = {
+    exercises: new Map(sources.exercises.map((row) => [row.name, row.id])),
+    customWidgets: new Map(sources.customWidgets.map((row) => [row.name, row.id])),
+  }
   const unresolved: string[] = []
 
   const remapped = (Array.isArray(raw) ? raw : []).map((entry) => {
     const record = asRecord(entry)
-    if (!NAME_KEYED.includes(record.type as WidgetType)) return record
+    const ref = NAME_REFS[record.type as WidgetType]
+    if (!ref) return record
     const options = asRecord(record.options)
-    const name = pickText(options.exercise_name)
-    const localId = name == null ? null : (idByName.get(name) ?? null)
+    const name = pickText(options[ref.nameKey])
+    const localId = name == null ? null : (idByName[ref.source].get(name) ?? null)
     if (name != null && localId == null && !unresolved.includes(name)) unresolved.push(name)
-    const { exercise_name: _dropped, ...rest } = options
-    return { ...record, options: { ...rest, exercise_id: localId } }
+    const { [ref.nameKey]: _dropped, ...rest } = options
+    return { ...record, options: { ...rest, [ref.idKey]: localId } }
   })
 
   return { ...normalizeWidgets(remapped), unresolved }
@@ -281,14 +332,14 @@ export function parseDashboardFile(raw: unknown): DashboardFile | null {
 
 export function buildDashboardFile(
   widgets: WidgetInstance[],
-  exercises: Exercise[],
+  sources: NameSources,
 ): DashboardFile {
   return {
     app: 'openrep',
     kind: 'dashboard',
     version: DASHBOARD_VERSION,
     exported_at: new Date().toISOString(),
-    widgets: toFileWidgets(widgets, exercises),
+    widgets: toFileWidgets(widgets, sources),
   }
 }
 

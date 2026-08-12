@@ -103,6 +103,35 @@ function ExerciseField({
   )
 }
 
+/** Which saved widget this placement shows. Deleted widgets are not listed, so
+ * a placement pointing at one falls back to the "choose one" state. */
+function CustomWidgetField({
+  value,
+  onChange,
+}: {
+  value: number | null
+  onChange: (value: number | null) => void
+}) {
+  const { data: widgets } = useQuery({ queryKey: ['widgets'], queryFn: api.widgets.list })
+
+  return (
+    <Field label="Widget">
+      <NativeSelect
+        aria-label="Widget"
+        value={value == null ? '' : String(value)}
+        onChange={(event) => onChange(event.target.value === '' ? null : Number(event.target.value))}
+      >
+        <option value="">Choose a widget…</option>
+        {widgets?.map((widget) => (
+          <option key={widget.id} value={widget.id}>
+            {widget.name}
+          </option>
+        ))}
+      </NativeSelect>
+    </Field>
+  )
+}
+
 function CategoryField({
   value,
   onChange,
@@ -259,6 +288,16 @@ export function WidgetOptionsForm({
             </NativeSelect>
           </Field>
         </div>
+      )
+    case 'custom':
+      // Only which widget goes here. Everything else about it — the query, the
+      // visualization — belongs to the widget itself and is edited on the
+      // widgets page, so it stays the same everywhere it is placed.
+      return (
+        <CustomWidgetField
+          value={widget.options.widget_id}
+          onChange={(widget_id) => onChange({ ...widget, options: { widget_id } })}
+        />
       )
   }
 }

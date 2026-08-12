@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useRef, useState } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
@@ -24,6 +24,12 @@ import {
   type WidgetType,
 } from '@/lib/dashboard'
 
+/** The union member the Add dialog builds by hand: `custom` is not offered as
+ * a bare type, only as one of the user's saved widgets. */
+const BUILT_IN_TYPES = (Object.keys(WIDGET_CATALOG) as WidgetType[]).filter(
+  (type) => type !== 'custom',
+)
+
 export const Route = createFileRoute('/')({
   component: Dashboard,
 })
@@ -37,6 +43,7 @@ interface PendingImport {
 
 export function Dashboard() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // draft !== null IS edit mode: one piece of state, so there is no separate
@@ -52,8 +59,10 @@ export function Dashboard() {
     queryKey: ['dashboard', 'config'],
     queryFn: api.dashboard.getConfig,
   })
-  // Needed to swap ids for names on export and to title pinned widgets.
+  // Both are needed to swap ids for names on export and to title pinned
+  // widgets — a custom placement is titled by the user's name for it.
   const exercisesQuery = useQuery({ queryKey: ['exercises'], queryFn: api.exercises.list })
+  const customWidgetsQuery = useQuery({ queryKey: ['widgets'], queryFn: api.widgets.list })
 
   const saveConfig = useMutation({
     mutationFn: (widgets: WidgetInstance[]) => api.dashboard.saveConfig(toConfigPayload(widgets)),
@@ -87,11 +96,18 @@ export function Dashboard() {
   const shown = draft ?? saved
   const dirty = editing && JSON.stringify(draft) !== JSON.stringify(saved)
   const exercises = exercisesQuery.data ?? []
-  const exerciseName = (id: number | null) =>
-    id == null ? null : (exercises.find((exercise) => exercise.id === id)?.name ?? null)
+  const customWidgets = customWidgetsQuery.data ?? []
+  const nameIn = (rows: { id: number; name: string }[], id: number | null) =>
+    id == null ? null : (rows.find((row) => row.id === id)?.name ?? null)
+  /** The name a widget's options pin it to, whichever table that lives in. */
+  const pinnedName = (widget: WidgetInstance) => {
+    if (widget.type === 'exercise_progress') return nameIn(exercises, widget.options.exercise_id)
+    if (widget.type === 'custom') return nameIn(customWidgets, widget.options.widget_id)
+    return null
+  }
 
   const exportLayout = () => {
-    const file = buildDashboardFile(shown, exercises)
+    const file = buildDashboardFile(shown, { exercises, customWidgets })
     const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const anchor = window.document.createElement('a')
@@ -116,7 +132,7 @@ export function Dashboard() {
         setFileError('This file is not an OpenRep v1 dashboard layout.')
         return
       }
-      const result = fromFileWidgets(parsed.widgets, exercises)
+      const result = fromFileWidgets(parsed.widgets, { exercises, customWidgets })
       setPendingImport({
         widgets: result.widgets,
         fileName: file.name,
@@ -217,12 +233,7 @@ export function Dashboard() {
             <WidgetFrame
               key={widget.id}
               widget={widget}
-              title={widgetTitle(
-                widget,
-                widget.type === 'exercise_progress'
-                  ? exerciseName(widget.options.exercise_id)
-                  : null,
-              )}
+              title={widgetTitle(widget, pinnedName(widget))}
               editing={editing}
               canMoveUp={index > 0}
               canMoveDown={index < shown.length - 1}
@@ -240,30 +251,95 @@ export function Dashboard() {
 
       {adding && (
         <Modal title="Add widget" onClose={() => setAdding(false)}>
-          <ul className="flex list-none flex-col gap-2 p-0">
-            {(Object.keys(WIDGET_CATALOG) as WidgetType[]).map((type) => (
-              <li
-                key={type}
-                className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
-              >
-                <div>
-                  <p className="font-medium">{WIDGET_CATALOG[type].label}</p>
-                  <p className="text-muted-foreground text-sm">{WIDGET_CATALOG[type].description}</p>
-                </div>
+          <div className="flex flex-col gap-5">
+            <section className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-medium text-muted-foreground text-sm">Your widgets</h3>
+                {/* The way out of the fixed catalog. Leaving edit mode without
+                    saving would cost the draft, so the layout is saved first
+                    when there is something to save. */}
                 <Button
                   variant="outline"
                   size="sm"
-                  aria-label={`Add ${WIDGET_CATALOG[type].label}`}
                   onClick={() => {
-                    setDraft([...shown, createWidget(type)])
-                    setAdding(false)
+                    if (dirty && draft) saveConfig.mutate(draft)
+                    void navigate({ to: '/widgets/new' })
                   }}
                 >
-                  Add
+                  Create widget
                 </Button>
-              </li>
-            ))}
-          </ul>
+              </div>
+              {customWidgets.length === 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  Build your own widget to ask a question these don't answer — any metric, grouped
+                  and filtered how you want.
+                </p>
+              ) : (
+                <ul className="flex list-none flex-col gap-2 p-0">
+                  {customWidgets.map((custom) => (
+                    <li
+                      key={custom.id}
+                      className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{custom.name}</p>
+                        {custom.description && (
+                          <p className="truncate text-muted-foreground text-sm">
+                            {custom.description}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        aria-label={`Add ${custom.name}`}
+                        onClick={() => {
+                          const widget = createWidget('custom')
+                          setDraft([
+                            ...shown,
+                            { ...widget, options: { widget_id: custom.id } } as WidgetInstance,
+                          ])
+                          setAdding(false)
+                        }}
+                      >
+                        Add
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section className="flex flex-col gap-2">
+              <h3 className="font-medium text-muted-foreground text-sm">Built in</h3>
+              <ul className="flex list-none flex-col gap-2 p-0">
+                {BUILT_IN_TYPES.map((type) => (
+                  <li
+                    key={type}
+                    className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+                  >
+                    <div>
+                      <p className="font-medium">{WIDGET_CATALOG[type].label}</p>
+                      <p className="text-muted-foreground text-sm">
+                        {WIDGET_CATALOG[type].description}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      aria-label={`Add ${WIDGET_CATALOG[type].label}`}
+                      onClick={() => {
+                        setDraft([...shown, createWidget(type)])
+                        setAdding(false)
+                      }}
+                    >
+                      Add
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </div>
         </Modal>
       )}
 
@@ -306,7 +382,7 @@ export function Dashboard() {
               ? `${pendingImport.dropped} from a newer version will be dropped.`
               : '',
             pendingImport.unresolved.length > 0
-              ? `You don't have ${pendingImport.unresolved.join(', ')}, so those widgets need an exercise choosing.`
+              ? `You don't have ${pendingImport.unresolved.join(', ')}, so those widgets need setting up.`
               : '',
             'You still have to save.',
           ]
