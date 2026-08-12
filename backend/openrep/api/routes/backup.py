@@ -33,6 +33,19 @@ def import_backup(request: BackupImportRequest, session: SessionDep) -> BackupIm
     if data.version != BACKUP_VERSION:
         raise HTTPException(status_code=422, detail=f"Unsupported backup version {data.version}")
 
+    # Exercise.name is unique. In merge mode a repeated name collapses onto the
+    # row the previous iteration flushed, but replace mode does no lookup at
+    # all, so a duplicate would only surface as an IntegrityError at commit —
+    # a 500 raised after the wipe was already issued. Reject it up front.
+    seen_names: set[str] = set()
+    for exercise in data.exercises:
+        if exercise.name in seen_names:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Backup contains duplicate exercise name {exercise.name!r}",
+            )
+        seen_names.add(exercise.name)
+
     exercise_ids = {exercise.id for exercise in data.exercises}
     workout_ids = {workout.id for workout in data.workouts}
     for set_entry in data.sets:

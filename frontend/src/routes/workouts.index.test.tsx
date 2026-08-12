@@ -64,6 +64,23 @@ describe('WorkoutsPage', () => {
     )
   })
 
+  it('defaults the date to the local day, not the UTC one', async () => {
+    // 2026-08-12T01:00Z is still the evening of the 11th in Chicago. Using
+    // toISOString() here dated an evening session a day into the future.
+    vi.stubEnv('TZ', 'America/Chicago')
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-12T01:00:00Z'))
+    vi.mocked(api.workouts.list).mockResolvedValue([])
+
+    try {
+      renderWithClient(<WorkoutsPage />)
+      expect(screen.getByLabelText('Date')).toHaveValue('2026-08-11')
+    } finally {
+      vi.useRealTimers()
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('deletes a workout after confirmation', async () => {
     vi.mocked(api.workouts.list).mockResolvedValue([workout])
     vi.mocked(api.workouts.delete).mockResolvedValue(undefined)

@@ -39,6 +39,29 @@ def test_get_set_by_id(client: TestClient):
     assert client.get("/api/sets/999").status_code == 404
 
 
+def test_sets_with_equal_order_fall_back_to_insertion_order(client: TestClient):
+    exercise_id = _make_exercise(client)
+    workout_id = _make_workout(client)
+    # set_order is client-assigned and defaults to 0, so direct API writes and
+    # imported backups collide on it routinely. Without an id tiebreaker the
+    # order among equal keys is unspecified and rows shuffle between refetches.
+    ids = [
+        client.post(
+            "/api/sets",
+            json={
+                "workout_id": workout_id,
+                "exercise_id": exercise_id,
+                "weight_kg": weight,
+                "reps": 5,
+            },
+        ).json()["id"]
+        for weight in (100, 105, 110)
+    ]
+
+    listed = client.get("/api/sets", params={"workout_id": workout_id}).json()
+    assert [entry["id"] for entry in listed] == ids
+
+
 def test_create_set_with_missing_refs_404(client: TestClient):
     exercise_id = _make_exercise(client)
     workout_id = _make_workout(client)

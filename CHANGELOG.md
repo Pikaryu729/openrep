@@ -47,6 +47,26 @@ process serving both the API and the UI.
 - Duplicate exercise names return 409 instead of a 500.
 - Creating a set against a missing workout or exercise returns 404 instead of
   silently inserting an orphan row.
+- New workouts default to the local date. They previously used the UTC date, so
+  an evening session west of Greenwich was dated a day into the future.
+- `openrep --host ::1` (or `::`) opens the browser instead of polling a
+  bracketed IPv6 literal that no socket call accepts, and `--host ""` no longer
+  exits with a traceback before the server starts.
+- Sets with equal `set_order` — possible from direct API writes or an imported
+  backup — keep a stable order instead of shuffling between requests.
+- A failed sets or exercises request on a workout shows an error. It previously
+  rendered the empty state, so a network blip looked like the logged sets had
+  been lost.
+- The exercise picker falls back to a live exercise when the selected one is
+  deleted elsewhere, instead of posting an id the picker no longer displays.
+- The same backup file can be selected again after an import, which is what
+  switching from merge to replace requires.
+- A backup containing duplicate exercise names is refused with 422 up front,
+  rather than failing at commit with a 500 after replace mode issued the wipe.
+- Requests for stale `assets/` bundles return 404 instead of the HTML shell,
+  which a tab left open across an upgrade reported as a syntax error.
+- Backup export downloads in Firefox, which ignores a programmatic click on an
+  anchor that is not in the document.
 
 ### Development notes
 

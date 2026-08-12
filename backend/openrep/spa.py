@@ -46,6 +46,12 @@ def mount_spa(app: FastAPI, static_dir: Path, api_prefix: str = "/api") -> bool:
 
         asset = resolve_static_file(static_dir, spa_path)
         if asset is None:
+            # Everything under assets/ is a fingerprinted build artifact, never
+            # a client route. Serving the shell there means an upgraded server
+            # answers a stale tab's request for an old bundle with 200 + HTML,
+            # which the browser reports as "Unexpected token '<'".
+            if spa_path.startswith("assets/"):
+                raise HTTPException(status_code=404, detail="Not Found")
             # Unknown path: hand back the shell and let the client router decide.
             return FileResponse(index_file, headers={"Cache-Control": "no-cache"})
 

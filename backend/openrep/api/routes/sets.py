@@ -14,7 +14,10 @@ def list_sets(session: SessionDep, workout_id: int | None = None) -> list[SetEnt
     query = select(SetEntry)
     if workout_id is not None:
         query = query.where(SetEntry.workout_id == workout_id)
-    return session.exec(query.order_by(SetEntry.set_order)).all()
+    # id breaks ties: set_order is client-assigned, so direct API writes and
+    # imported backups can collide on it, and SQLite's order among equal keys
+    # is unspecified — rows would shuffle between refetches.
+    return session.exec(query.order_by(SetEntry.set_order, SetEntry.id)).all()
 
 
 @router.post("", response_model=SetEntryRead, status_code=201)

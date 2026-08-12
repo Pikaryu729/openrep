@@ -96,6 +96,22 @@ def test_unsupported_version_422(client: TestClient):
     assert response.status_code == 422
 
 
+def test_duplicate_exercise_name_422_and_db_unchanged(client: TestClient):
+    _seed(client)
+    document = client.get("/api/backup/export").json()
+    duplicate = dict(document["exercises"][0])
+    duplicate["id"] = 999
+    document["exercises"].append(duplicate)
+
+    # Without the up-front check this only failed at commit, as a 500 from the
+    # unique index — after replace mode had already issued the wipe.
+    response = client.post("/api/backup/import", json={"mode": "replace", "data": document})
+    assert response.status_code == 422
+    assert len(client.get("/api/exercises").json()) == 1
+    assert len(client.get("/api/workouts").json()) == 1
+    assert len(client.get("/api/sets").json()) == 1
+
+
 def test_dangling_reference_422_and_db_unchanged(client: TestClient):
     _seed(client)
     document = client.get("/api/backup/export").json()

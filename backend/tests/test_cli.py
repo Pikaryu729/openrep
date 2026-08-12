@@ -3,7 +3,7 @@ import socket
 import pytest
 
 from openrep import __version__
-from openrep.cli import build_parser, display_host, port_in_use
+from openrep.cli import build_parser, display_host, port_in_use, reachable_host
 from openrep.core.config import settings
 
 
@@ -41,6 +41,37 @@ def test_flags_override_defaults():
 )
 def test_display_host_normalises_bind_addresses(bound: str, expected: str):
     assert display_host(bound) == expected
+
+
+@pytest.mark.parametrize(
+    ("bound", "expected"),
+    [
+        ("0.0.0.0", "127.0.0.1"),
+        ("", "127.0.0.1"),
+        ("::", "::1"),
+        ("::1", "::1"),
+        ("127.0.0.1", "127.0.0.1"),
+    ],
+)
+def test_reachable_host_is_unbracketed(bound: str, expected: str):
+    assert reachable_host(bound) == expected
+
+
+@pytest.mark.parametrize("bound", ["::", "::1", "0.0.0.0", "", "127.0.0.1", "localhost"])
+def test_reachable_host_is_resolvable(bound: str):
+    # display_host()'s bracketed IPv6 form is for URLs only — getaddrinfo
+    # rejects it, and passing it to create_connection made the readiness
+    # probe fail forever on a server that had started fine.
+    socket.getaddrinfo(reachable_host(bound), 0, type=socket.SOCK_STREAM)
+
+
+def test_port_in_use_accepts_the_empty_host():
+    # uvicorn reads "" as every interface; getaddrinfo("") raises gaierror,
+    # which used to escape as a traceback before the server ever started.
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    assert port_in_use("", port) is False
 
 
 def test_port_in_use_detects_a_live_listener():

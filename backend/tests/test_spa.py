@@ -70,6 +70,14 @@ def test_unknown_api_path_404s_instead_of_serving_the_shell(spa_client: TestClie
     assert "<div id='root'>" not in response.text
 
 
+def test_stale_asset_404s_instead_of_serving_the_shell(spa_client: TestClient):
+    # A tab left open across an upgrade requests the previous build's bundle.
+    # Answering with 200 + HTML surfaces as "Unexpected token '<'".
+    response = spa_client.get("/assets/main-OLDHASH.js")
+    assert response.status_code == 404
+    assert "<div id='root'>" not in response.text
+
+
 def test_missing_build_registers_nothing(tmp_path: Path):
     app = FastAPI()
     assert mount_spa(app, tmp_path / "does-not-exist") is False

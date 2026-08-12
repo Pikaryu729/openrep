@@ -125,6 +125,50 @@ describe('SettingsPage backup', () => {
     expect(await screen.findByText(/Imported \(merge\)/)).toBeInTheDocument()
   })
 
+  it('lets the same file be imported again after a successful import', async () => {
+    // Realising you meant "replace" right after importing as "merge" means
+    // picking the same file twice. A file input whose value still holds that
+    // filename fires no second change event, so the input is cleared as soon
+    // as the contents have been read.
+    const document_ = {
+      app: 'openrep',
+      version: 1,
+      exported_at: '2026-08-10T00:00:00Z',
+      exercises: [],
+      workouts: [],
+      sets: [],
+    }
+    vi.mocked(api.backup.importData).mockResolvedValue({
+      mode: 'merge',
+      exercises_created: 0,
+      exercises_matched: 0,
+      workouts_created: 0,
+      sets_created: 0,
+    })
+
+    renderWithClient(<SettingsPage />)
+    const input = screen.getByLabelText('Backup file') as HTMLInputElement
+    const file = new File([JSON.stringify(document_)], 'backup.json', {
+      type: 'application/json',
+    })
+
+    fireEvent.change(input, { target: { files: [file] } })
+    const merge = await screen.findByRole('dialog', { name: 'Merge backup?' })
+    fireEvent.click(within(merge).getByRole('button', { name: 'Import' }))
+    await screen.findByText(/Imported \(merge\)/)
+    expect(input.value).toBe('')
+
+    fireEvent.click(screen.getByLabelText(/^Replace/))
+    fireEvent.change(input, { target: { files: [file] } })
+
+    const replace = await screen.findByRole('dialog', { name: 'Replace all data?' })
+    fireEvent.click(within(replace).getByRole('button', { name: 'Replace everything' }))
+
+    await vi.waitFor(() =>
+      expect(api.backup.importData).toHaveBeenCalledWith({ mode: 'replace', data: document_ }),
+    )
+  })
+
   it('rejects files that are not OpenRep backups', async () => {
     renderWithClient(<SettingsPage />)
 

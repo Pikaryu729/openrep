@@ -21,8 +21,8 @@ READY_TIMEOUT = 60.0
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 
 
-def display_host(host: str) -> str:
-    """The host a browser should actually use, bracketed if it's IPv6.
+def reachable_host(host: str) -> str:
+    """The host a client should connect to, as a bare address.
 
     Binding a wildcard address is not something you can navigate to, and mixing
     up the IPv4/IPv6 loopback yields "connection refused" on a server that is
@@ -31,14 +31,27 @@ def display_host(host: str) -> str:
     if host in {"0.0.0.0", ""}:
         return "127.0.0.1"
     if host == "::":
-        return "[::1]"
-    return f"[{host}]" if ":" in host else host
+        return "::1"
+    return host
+
+
+def display_host(host: str) -> str:
+    """`reachable_host` in the form a URL needs — IPv6 literals bracketed.
+
+    Only ever interpolate this into a URL: `getaddrinfo` rejects the bracketed
+    form, so socket calls want `reachable_host` instead.
+    """
+    reachable = reachable_host(host)
+    return f"[{reachable}]" if ":" in reachable else reachable
 
 
 def port_in_use(host: str, port: int) -> bool:
     """Try to bind the way uvicorn will, then let go."""
+    # asyncio — and so uvicorn — reads an empty host as "every interface";
+    # getaddrinfo spells that None + AI_PASSIVE (the flag is ignored when a
+    # host is actually given, so this stays a no-op for real addresses).
     for family, socktype, proto, _canonname, sockaddr in socket.getaddrinfo(
-        host, port, type=socket.SOCK_STREAM
+        host or None, port, type=socket.SOCK_STREAM, flags=socket.AI_PASSIVE
     ):
         with socket.socket(family, socktype, proto) as sock:
             # uvicorn sets SO_REUSEADDR; match it so a socket in TIME_WAIT is
@@ -115,10 +128,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: --port must be between 1 and 65535 (got {args.port})", file=sys.stderr)
         return 2
 
-    browser_host = display_host(args.host)
-    url = f"http://{browser_host}:{args.port}/"
+    connect_host = reachable_host(args.host)
+    url = f"http://{display_host(args.host)}:{args.port}/"
 
-    if port_in_use(args.host, args.port):
+    try:
+        already_running = port_in_use(args.host, args.port)
+    except socket.gaierror:
+        print(f"error: could not resolve --host {args.host!r}", file=sys.stderr)
+        return 2
+
+    if already_running:
         print(
             f"error: port {args.port} on {args.host} is already in use.\n\n"
             f"  If OpenRep is already running, it is at {url}\n"
@@ -144,7 +163,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.no_browser:
         threading.Thread(
             target=open_browser_when_ready,
-            args=(url, browser_host, args.port),
+            args=(url, connect_host, args.port),
             daemon=True,
         ).start()
 

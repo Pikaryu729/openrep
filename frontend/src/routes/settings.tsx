@@ -204,8 +204,13 @@ function BackupCard() {
       const anchor = window.document.createElement('a')
       anchor.href = url
       anchor.download = `openrep-backup-${document.exported_at.slice(0, 10)}.json`
+      // Firefox only honours a programmatic click on an anchor that is in the
+      // document, and revoking in the same tick races the browser's fetch of
+      // the blob — either one silently downloads nothing.
+      window.document.body.append(anchor)
       anchor.click()
-      URL.revokeObjectURL(url)
+      anchor.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 0)
     },
   })
 
@@ -222,6 +227,11 @@ function BackupCard() {
   const onFileChosen = async (file: File) => {
     setFileError(null)
     setSummary(null)
+    // The contents are in hand from here on, so clear the input immediately:
+    // an unchanged value fires no `change` event, and picking the same file
+    // again is exactly what you do after importing as merge when you meant
+    // replace, or after fixing a file we rejected.
+    if (fileInputRef.current) fileInputRef.current.value = ''
     try {
       const parsed = JSON.parse(await file.text()) as BackupDocument
       if (parsed.app !== 'openrep' || parsed.version !== 1) {
@@ -314,10 +324,7 @@ function BackupCard() {
             isPending={importBackup.isPending}
             error={importBackup.error ? importBackup.error.message : null}
             onConfirm={() => importBackup.mutate({ mode, data: pending.document })}
-            onCancel={() => {
-              setPending(null)
-              if (fileInputRef.current) fileInputRef.current.value = ''
-            }}
+            onCancel={() => setPending(null)}
           />
         )}
       </CardContent>

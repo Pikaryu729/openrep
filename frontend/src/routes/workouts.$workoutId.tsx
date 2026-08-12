@@ -93,9 +93,13 @@ export function WorkoutDetailPage({ workoutId }: { workoutId: number }) {
   }
 
   const workout = workoutQuery.data
-  const sets = setsQuery.data ?? []
-  const exercises = exercisesQuery.data ?? []
-  const exerciseById = new Map(exercises.map((exercise) => [exercise.id, exercise]))
+  // Never `?? []`: an empty array here is indistinguishable from a failed or
+  // still-pending fetch, and both would render as "no sets yet" — i.e. the
+  // user's logged sets silently appearing to have vanished.
+  const sets = setsQuery.data
+  const exercises = exercisesQuery.data
+  const contentError = setsQuery.error ?? exercisesQuery.error
+  const exerciseById = new Map((exercises ?? []).map((exercise) => [exercise.id, exercise]))
 
   return (
     <section>
@@ -145,57 +149,67 @@ export function WorkoutDetailPage({ workoutId }: { workoutId: number }) {
         </CardContent>
       </Card>
 
-      <div className="mt-4">
-        {sets.length === 0 ? (
-          <EmptyState title="No sets yet" hint="Add your first set below." />
-        ) : (
-          <div className="rounded-lg border bg-card shadow-xs">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Exercise</TableHead>
-                  <TableHead>Weight ({weightUnit(units)})</TableHead>
-                  <TableHead>Reps</TableHead>
-                  <TableHead>RPE</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sets.map((setEntry, index) => (
-                  <SetRow
-                    key={setEntry.id}
-                    setEntry={setEntry}
-                    exerciseName={exerciseById.get(setEntry.exercise_id)?.name ?? '—'}
-                    prev={index > 0 ? sets[index - 1] : null}
-                    next={index < sets.length - 1 ? sets[index + 1] : null}
-                    onChanged={invalidateSets}
-                  />
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </div>
-
-      {exercises.length === 0 ? (
-        <div className="mt-4">
-          <EmptyState
-            title="No exercises in your library"
-            hint="Create an exercise first, then log sets against it."
-            action={
-              <Button variant="outline" asChild>
-                <Link to="/exercises">Go to exercises</Link>
-              </Button>
-            }
-          />
-        </div>
+      {contentError ? (
+        <p className="mt-4 text-sm text-destructive">
+          Could not load this workout's sets: {contentError.message}
+        </p>
+      ) : !sets || !exercises ? (
+        <p className="mt-4 text-muted-foreground">Loading sets…</p>
       ) : (
-        <AddSetForm
-          workoutId={workoutId}
-          exercises={exercises}
-          sets={sets}
-          onCreated={invalidateSets}
-        />
+        <>
+          <div className="mt-4">
+            {sets.length === 0 ? (
+              <EmptyState title="No sets yet" hint="Add your first set below." />
+            ) : (
+              <div className="rounded-lg border bg-card shadow-xs">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Exercise</TableHead>
+                      <TableHead>Weight ({weightUnit(units)})</TableHead>
+                      <TableHead>Reps</TableHead>
+                      <TableHead>RPE</TableHead>
+                      <TableHead />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sets.map((setEntry, index) => (
+                      <SetRow
+                        key={setEntry.id}
+                        setEntry={setEntry}
+                        exerciseName={exerciseById.get(setEntry.exercise_id)?.name ?? '—'}
+                        prev={index > 0 ? sets[index - 1] : null}
+                        next={index < sets.length - 1 ? sets[index + 1] : null}
+                        onChanged={invalidateSets}
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+
+          {exercises.length === 0 ? (
+            <div className="mt-4">
+              <EmptyState
+                title="No exercises in your library"
+                hint="Create an exercise first, then log sets against it."
+                action={
+                  <Button variant="outline" asChild>
+                    <Link to="/exercises">Go to exercises</Link>
+                  </Button>
+                }
+              />
+            </div>
+          ) : (
+            <AddSetForm
+              workoutId={workoutId}
+              exercises={exercises}
+              sets={sets}
+              onCreated={invalidateSets}
+            />
+          )}
+        </>
       )}
 
       {confirmingDelete && (
@@ -393,6 +407,13 @@ function AddSetForm({
 }) {
   const units = useUnits()
   const [exerciseId, setExerciseId] = useState<number>(exercises[0].id)
+  // The list refetches on window focus, so the selected exercise can be
+  // deleted out from under us. A <select> whose value matches no option
+  // displays the first one — without this the form would POST the id the user
+  // can no longer see, and get a 404 contradicting the picker.
+  const selectedId = exercises.some((exercise) => exercise.id === exerciseId)
+    ? exerciseId
+    : exercises[0].id
   const [weight, setWeight] = useState('')
   const [reps, setReps] = useState('')
   const [rpe, setRpe] = useState('')
@@ -423,7 +444,7 @@ function AddSetForm({
             if (weight === '' || reps === '') return
             createSet.mutate({
               workout_id: workoutId,
-              exercise_id: exerciseId,
+              exercise_id: selectedId,
               weight_kg: displayToKg(Number(weight), units),
               reps: Number(reps),
               rpe: rpe === '' ? undefined : Number(rpe),
@@ -437,7 +458,7 @@ function AddSetForm({
               <select
                 id="add-set-exercise"
                 className={selectClassName}
-                value={exerciseId}
+                value={selectedId}
                 onChange={(event) => {
                   const id = Number(event.target.value)
                   setExerciseId(id)
