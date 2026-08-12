@@ -64,16 +64,107 @@ describe('SettingsPage appearance', () => {
     expect(JSON.parse(localStorage.getItem(THEME_STORAGE_KEY)!).preset).toBe('ocean')
   })
 
-  it('applies a custom accent and can reset it', () => {
-    renderWithClient(<SettingsPage />)
+})
 
-    fireEvent.change(screen.getByLabelText('Custom accent color'), {
-      target: { value: '#123456' },
-    })
+describe('SettingsPage theme editor', () => {
+  const openEditor = () => {
+    renderWithClient(<SettingsPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open theme editor' }))
+  }
+
+  it('applies a custom brand color and can reset it to the preset', () => {
+    openEditor()
+
+    fireEvent.change(screen.getByLabelText('Primary'), { target: { value: '#123456' } })
     expect(document.documentElement.style.getPropertyValue('--accent')).toBe('#123456')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reset to preset accent' }))
-    expect(document.documentElement.style.getPropertyValue('--accent')).toBe('')
+    fireEvent.click(screen.getByRole('button', { name: 'Reset Primary' }))
+    // Resetting returns the token to the preset value rather than clearing it:
+    // applyTheme always writes the fully resolved palette.
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe('#3f3f46')
+  })
+
+  it('accepts a hex typed into the text field', () => {
+    openEditor()
+
+    const field = screen.getByLabelText('Primary hex')
+    fireEvent.change(field, { target: { value: '#abcdef' } })
+    fireEvent.blur(field)
+
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe('#abcdef')
+  })
+
+  it('ignores a half-typed hex instead of committing it', () => {
+    openEditor()
+
+    const field = screen.getByLabelText('Primary hex')
+    fireEvent.change(field, { target: { value: '#12' } })
+    fireEvent.blur(field)
+
+    // Nothing was committed, so no override is stored and the field snaps back
+    // to the preset value rather than keeping the unparseable draft.
+    expect(field).toHaveValue('#3f3f46')
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBeNull()
+  })
+
+  it('keeps the brand accent off shadcn’s hover-wash token', () => {
+    openEditor()
+
+    fireEvent.change(screen.getByLabelText('Primary'), { target: { value: '#123456' } })
+
+    const style = document.documentElement.style
+    expect(style.getPropertyValue('--accent')).toBe('#123456')
+    expect(style.getPropertyValue('--ui-accent')).not.toBe('#123456')
+  })
+
+  it('warns when a customization breaks contrast', () => {
+    openEditor()
+
+    expect(screen.queryByRole('status', { name: 'Theme warnings' })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Primary'), { target: { value: '#fefefe' } })
+
+    const warnings = screen.getByRole('status', { name: 'Theme warnings' })
+    // The sidebar highlight follows the brand accent, so one bad color trips
+    // both the Primary and Sidebar highlight pairs.
+    expect(within(warnings).getAllByText(/below the 4.5:1 minimum/).length).toBeGreaterThan(0)
+    expect(within(warnings).getByText(/Primary foreground on Primary/)).toBeInTheDocument()
+  })
+
+  it('resets every customization at once', () => {
+    openEditor()
+
+    fireEvent.change(screen.getByLabelText('Primary'), { target: { value: '#123456' } })
+    fireEvent.click(screen.getByRole('button', { name: /Reset 1 customization/ }))
+
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe('#3f3f46')
+  })
+
+  it('imports a pasted tweakcn theme, mapping primary onto the brand accent', () => {
+    openEditor()
+    fireEvent.click(screen.getByRole('button', { name: 'Import a theme' }))
+
+    fireEvent.change(screen.getByLabelText('Theme CSS'), {
+      target: { value: ':root { --primary: #ff0000; --accent: #00ff00; }' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+
+    const style = document.documentElement.style
+    // Their --primary is our brand --accent; their --accent is the hover wash.
+    expect(style.getPropertyValue('--accent')).toBe('#ff0000')
+    expect(style.getPropertyValue('--ui-accent')).toBe('#00ff00')
+  })
+
+  it('reports a paste it could not read instead of importing nothing', () => {
+    openEditor()
+    fireEvent.click(screen.getByRole('button', { name: 'Import a theme' }))
+
+    fireEvent.change(screen.getByLabelText('Theme CSS'), {
+      target: { value: '.card { color: red }' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+
+    expect(screen.getByText(/No CSS rules found|No recognisable theme variables/)).toBeInTheDocument()
   })
 })
 
