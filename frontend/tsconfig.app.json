@@ -7,7 +7,11 @@
     "target": "es2023",
     "lib": ["ES2023", "DOM"],
     "module": "esnext",
-    "types": ["vite/client"],
+    // "node" is here for the colocated *.test.ts files only: themeTokens.test.ts
+    // reads index.css off disk to check it against the base token maps. It
+    // cannot import the stylesheet, because the Tailwind plugin processes
+    // `.css?raw` under Vitest and hands back nothing.
+    "types": ["vite/client", "node"],
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
 

@@ -2,17 +2,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { useRef, useState } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { ThemeEditor } from '@/components/ThemeEditor'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { api, type BackupDocument, type BackupImportSummary } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import {
-  PRESET_ACCENTS,
-  THEME_PRESETS,
-  contrastColorFor,
-  useTheme,
-  type ThemeMode,
-} from '@/lib/theme'
+import { useTheme, type ThemeMode } from '@/lib/theme'
+import { THEME_PRESET_DEFINITIONS, THEME_PRESETS } from '@/lib/themePresets'
 import { saveUnits, useUnits, type UnitSystem } from '@/lib/units'
 
 export const Route = createFileRoute('/settings')({
@@ -48,7 +44,9 @@ function SettingsRow({ label, children }: { label: string; children: React.React
 }
 
 function AppearanceCard() {
-  const { theme, update } = useTheme()
+  const api = useTheme()
+  const { theme, update } = api
+  const [customizing, setCustomizing] = useState(false)
 
   return (
     <Card>
@@ -84,14 +82,14 @@ function AppearanceCard() {
         <SettingsRow label="Theme">
           <div className="flex flex-wrap gap-2">
             {THEME_PRESETS.map((preset) => {
-              const selected = theme.preset === preset && !theme.accent
+              const selected = theme.preset === preset
               return (
                 <button
                   key={preset}
                   type="button"
                   data-testid={`preset-${preset}`}
                   aria-pressed={selected}
-                  onClick={() => update({ preset, accent: null, accentContrast: null })}
+                  onClick={() => update({ preset })}
                   className={cn(
                     'inline-flex items-center gap-2 rounded-md border bg-card px-3 py-1.5 text-sm transition-colors',
                     selected ? 'border-primary ring-[3px] ring-primary/25' : 'hover:bg-muted',
@@ -99,37 +97,28 @@ function AppearanceCard() {
                 >
                   <span
                     className="size-3.5 rounded-full"
-                    style={{ background: PRESET_ACCENTS[preset] }}
+                    style={{ background: THEME_PRESET_DEFINITIONS[preset].swatch }}
                   />
-                  {preset.charAt(0).toUpperCase() + preset.slice(1)}
+                  {THEME_PRESET_DEFINITIONS[preset].label}
                 </button>
               )
             })}
           </div>
         </SettingsRow>
-        <SettingsRow label="Custom accent">
-          <input
-            type="color"
-            aria-label="Custom accent color"
-            className="h-9 w-12 cursor-pointer rounded-md border bg-card p-1"
-            value={theme.accent ?? PRESET_ACCENTS[theme.preset]}
-            onChange={(event) =>
-              update({
-                accent: event.target.value,
-                accentContrast: contrastColorFor(event.target.value),
-              })
-            }
-          />
-          {theme.accent && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => update({ accent: null, accentContrast: null })}
-            >
-              Reset to preset accent
-            </Button>
-          )}
+        <SettingsRow label="Customize">
+          <Button
+            variant="outline"
+            size="sm"
+            aria-expanded={customizing}
+            onClick={() => setCustomizing((open) => !open)}
+          >
+            {customizing ? 'Hide theme editor' : 'Open theme editor'}
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            Every color, font, radius and shadow — layered on top of the preset.
+          </span>
         </SettingsRow>
+        {customizing && <ThemeEditor api={api} />}
       </CardContent>
     </Card>
   )
