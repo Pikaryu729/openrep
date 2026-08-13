@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { api, ApiError } from '@/lib/api'
@@ -41,17 +41,19 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
 
   const seed = useMutation({
     mutationFn: async (names: Set<string>): Promise<SeedSummary> => {
+      const chosen = STARTER_EXERCISES.filter((exercise) => names.has(exercise.name))
+      const results = await Promise.allSettled(
+        chosen.map((exercise) =>
+          api.exercises.create({ name: exercise.name, category: exercise.category }),
+        ),
+      )
       const summary: SeedSummary = { created: 0, existed: 0, failed: [] }
-      for (const exercise of STARTER_EXERCISES) {
-        if (!names.has(exercise.name)) continue
-        try {
-          await api.exercises.create({ name: exercise.name, category: exercise.category })
-          summary.created += 1
-        } catch (error) {
-          if (error instanceof ApiError && error.status === 409) summary.existed += 1
-          else summary.failed.push(exercise.name)
-        }
-      }
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') summary.created += 1
+        else if (result.reason instanceof ApiError && result.reason.status === 409)
+          summary.existed += 1
+        else summary.failed.push(chosen[index].name)
+      })
       return summary
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['exercises'] }),
@@ -90,11 +92,31 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
     void navigate({ to })
   }
 
+  const stepChangedAt = useRef(0)
+
+  const goTo = (target: (current: number) => number) => {
+    stepChangedAt.current = Date.now()
+    setStep((current) => Math.min(Math.max(target(current), 0), FINISH_STEP))
+  }
+
   const next = async () => {
-    if (step === EXERCISES_STEP && selected.size > 0) {
+    if (step === EXERCISES_STEP && selected.size > 0 && seed.data === undefined) {
+      // The Next button keeps its screen position across steps, so a double-
+      // click's second activation lands on the following step's button — here
+      // that would fire the seed before the user ever saw the selection.
+      // Only the seed needs this debounce: plain navigation is safe (bounds
+      // are clamped, and a skipped preference step is one Back-click away).
+      if (Date.now() - stepChangedAt.current < 300) return
       await seed.mutateAsync(selected)
     }
-    setStep((current) => current + 1)
+    goTo((current) => current + 1)
+  }
+
+  const retrySeed = () => {
+    // Try-again from an all-failed finish: clear the mutation so its stale
+    // summary doesn't leak into the next attempt, then return to the step.
+    seed.reset()
+    goTo(() => EXERCISES_STEP)
   }
 
   const nextLabel = () => {
@@ -125,6 +147,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
           {step === FINISH_STEP && (
             <FinishStep
               summary={seed.data ?? null}
+              onRetry={retrySeed}
               onLogWorkout={() => finish('/workouts')}
               onExplore={() => finish('/')}
             />
@@ -154,7 +177,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
                 variant="ghost"
                 className={cn(step === 0 && 'invisible')}
                 disabled={seed.isPending}
-                onClick={() => setStep((current) => current - 1)}
+                onClick={() => goTo((current) => current - 1)}
               >
                 Back
               </Button>

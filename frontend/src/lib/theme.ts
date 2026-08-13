@@ -293,6 +293,34 @@ export function applyTheme(settings: ThemeSettings): void {
   appliedVars = Object.keys(vars)
 }
 
+/**
+ * Runs once at startup, before first render. index.html's boot script has
+ * already replayed the *persisted* vars inline to prevent FOUC; this
+ * recomputes the theme from the current base tokens and presets and reapplies
+ * it, so a shipped change to a base or preset value reaches users whose
+ * persisted vars still carry the old numbers. When a persisted payload exists
+ * it is re-saved with the fresh vars, so the next boot paints correctly too —
+ * any future base/preset change self-heals on the next app start. First-time
+ * users get the default theme applied to the document but nothing written:
+ * DEFAULT_THEME deliberately stays unpersisted.
+ */
+export function initTheme(): void {
+  try {
+    const settings = loadTheme()
+    applyTheme(settings)
+
+    let hasPersisted = false
+    try {
+      hasPersisted = localStorage.getItem(THEME_STORAGE_KEY) !== null
+    } catch {
+      // Storage unavailable — nothing stale to refresh.
+    }
+    if (hasPersisted) saveTheme(settings)
+  } catch {
+    // Theming must never prevent the app from rendering.
+  }
+}
+
 // --- hook --------------------------------------------------------------------
 
 export function useTheme() {

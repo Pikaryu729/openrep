@@ -3,6 +3,7 @@ import type { SeedSummary } from './OnboardingWizard'
 
 interface FinishStepProps {
   summary: SeedSummary | null
+  onRetry: () => void
   onLogWorkout: () => void
   onExplore: () => void
 }
@@ -16,7 +17,39 @@ function summaryLine(summary: SeedSummary | null): string {
   return `${parts.join('; ')}.`
 }
 
-export function FinishStep({ summary, onLogWorkout, onExplore }: FinishStepProps) {
+export function FinishStep({ summary, onRetry, onLogWorkout, onExplore }: FinishStepProps) {
+  // Every create failed with a real error (409s count as existing): saying
+  // "you're all set" here would be a lie — own it and offer a retry.
+  const allFailed =
+    summary !== null &&
+    summary.created === 0 &&
+    summary.existed === 0 &&
+    summary.failed.length > 0
+
+  if (allFailed) {
+    return (
+      <div className="flex flex-col items-center gap-4 py-4 text-center">
+        <h2 className="text-xl font-semibold tracking-tight">Almost there</h2>
+        <p className="max-w-md text-sm text-destructive">
+          We couldn&apos;t reach the server — none of the selected exercises were added.
+        </p>
+        <p className="max-w-md text-sm text-muted-foreground">
+          You can try again now, or continue with an empty library — Settings → Replay
+          onboarding offers the starter exercises again later without duplicating anything.
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <Button onClick={onRetry}>Try again</Button>
+          <Button variant="outline" onClick={onLogWorkout}>
+            Log your first workout
+          </Button>
+          <Button variant="outline" onClick={onExplore}>
+            Explore the dashboard
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col items-center gap-4 py-4 text-center">
       <h2 className="text-xl font-semibold tracking-tight">You&apos;re all set</h2>

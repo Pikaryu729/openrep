@@ -1,46 +1,23 @@
-import { useQuery } from '@tanstack/react-query'
 import { Outlet, createRootRoute } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
 import { AppSidebar } from '@/components/AppSidebar'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
-import { api } from '@/lib/api'
-import { shouldShowOnboarding, useOnboardingFlag } from '@/lib/onboarding'
+import { useOnboardingGate } from '@/lib/onboarding'
 
 export const Route = createRootRoute({
   component: RootLayout,
 })
 
-/**
- * First-run gate: the wizard takes over for a fresh database (both lists
- * confirmed empty) or when Settings sets the 'replay' flag. The latch keeps
- * it up mid-wizard — seeding makes the exercises list non-empty — until the
- * wizard itself reports done. Pending or failed queries render the app
- * normally: an unreachable backend must never trap the user in onboarding.
- */
-function useOnboardingGate(): { active: boolean; onDone: () => void } {
-  const flag = useOnboardingFlag()
-  const exercises = useQuery({ queryKey: ['exercises'], queryFn: api.exercises.list })
-  const workouts = useQuery({ queryKey: ['workouts'], queryFn: () => api.workouts.list() })
-  const [latched, setLatched] = useState(false)
-
-  const show = shouldShowOnboarding(
-    flag,
-    exercises.isSuccess ? exercises.data.length === 0 : undefined,
-    workouts.isSuccess ? workouts.data.length === 0 : undefined,
-  )
-
-  useEffect(() => {
-    if (show) setLatched(true)
-  }, [show])
-
-  return { active: show || latched, onDone: () => setLatched(false) }
-}
-
 function RootLayout() {
   const onboarding = useOnboardingGate()
 
-  if (onboarding.active) {
+  // Only on flag-absent boots, while the first-run probe is in flight:
+  // render nothing rather than flashing the shell before the wizard swaps in.
+  if (onboarding.status === 'pending') {
+    return null
+  }
+
+  if (onboarding.status === 'wizard') {
     return <OnboardingWizard onDone={onboarding.onDone} />
   }
 

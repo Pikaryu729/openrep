@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+import { FRONTEND_ORIGIN } from '../support/ports'
+
 // Replace the config-level "onboarding already done" state with 'replay',
 // which forces the wizard regardless of what the shared e2e DB contains —
 // the fresh-database heuristic can't be relied on across specs. Seeding is
@@ -10,7 +12,7 @@ test.use({
     cookies: [],
     origins: [
       {
-        origin: `http://localhost:${process.env.E2E_FRONTEND_PORT ?? 5174}`,
+        origin: FRONTEND_ORIGIN,
         localStorage: [{ name: 'openrep.onboarding', value: 'replay' }],
       },
     ],
@@ -37,6 +39,9 @@ test('walks the wizard: preferences apply live, the library seeds, the flag latc
   await page.getByRole('button', { name: 'Next' }).click()
 
   await expect(page.getByRole('heading', { name: 'What do you train with?' })).toBeVisible()
+  // The seed button debounces activations arriving within 300ms of entering
+  // the step (double-click protection); wait it out so the click registers.
+  await page.waitForTimeout(350)
   await page.getByRole('button', { name: /Add \d+ exercises/ }).click()
 
   await expect(page.getByRole('heading', { name: "You're all set" })).toBeVisible()
