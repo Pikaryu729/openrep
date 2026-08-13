@@ -36,6 +36,21 @@ instructions:
 
 ## Commands
 
+### Dev servers (repo root)
+
+```bash
+make worktree-init  # first run in a fresh worktree: deps + its own scratch DB
+make dev            # both servers, on ports derived from this worktree's path
+make dev-backend    # backend only (a second terminal adopts the same ports)
+make dev-frontend   # frontend only
+make dev-ports      # print this worktree's ports and database without starting anything
+```
+
+`scripts/dev.sh` owns port *and* database selection so two checkouts can run at
+once — see "Worktrees" below for why that matters more than it looks. It writes
+what it resolved to `.dev/ports.env` (gitignored); read that rather than parsing
+server output.
+
 ### Backend (`cd backend`)
 
 ```bash
@@ -48,6 +63,11 @@ uv run ruff check . && uv run ruff format .      # lint + format
 uv run alembic revision --autogenerate -m "..."  # new migration after model changes
 uv run alembic upgrade head                      # apply migrations manually (rarely needed, see below)
 ```
+
+The two dev-server lines above hardcode `:8765`, so they collide between
+worktrees — prefer `make dev` / `make dev-backend`, which derive a free port.
+They are safe as far as *data* goes once `make worktree-init` has run, because
+the `backend/.env` it writes is read by anything whose cwd is `backend/`.
 
 ### Frontend (`cd frontend`)
 
@@ -76,6 +96,13 @@ time on a new machine, browsers need `pnpm exec playwright install chromium`
 (use plain `install`, not `--with-deps`, in sandboxed environments without
 root/sudo).
 
+Its ports are **derived from the checkout path** (23000+, clear of `dev.sh`'s
+20000–22000) so two worktrees can run the suite concurrently. They must stay
+distinct per worktree: `reuseExistingServer: false` is deliberate — adopting a
+foreign backend would point these specs, which create and delete rows, at
+someone's real database — so a shared port is a hard failure, not a fallback.
+`E2E_FRONTEND_PORT` / `E2E_BACKEND_PORT` override.
+
 ## Architecture notes
 
 **Migrations run automatically.** `openrep/main.py`'s FastAPI `lifespan` calls
@@ -90,7 +117,37 @@ Because startup always migrates the *real* configured database,
 `backend/tests/conftest.py` sets `OPENREP_DATABASE_PATH` to a fresh temp
 directory *before* importing `openrep.main` — otherwise running pytest would
 create/migrate a file under the developer's real `~/.openrep/`. Preserve that
-ordering (env var set → then import app modules) if you touch conftest.py.
+ordering (env var set → then import app modules) if you touch conftest.py. The
+path is frozen when `openrep.core.config` is first imported: `settings` is a
+module-level singleton and `migrations/env.py` reads `settings.database_url`
+from it, so nothing can redirect the database after that import.
+
+Auto-migration with no downgrade step needs two guardrails, both in
+`core/migrate.py` and covered by `tests/test_migrate.py`:
+
+- **A schema change to a database that already holds data is snapshotted
+  first** — `openrep.pre-<revision>-<timestamp>.db` beside the original. That
+  copy is the only way back, so it is not dev-only scaffolding; a user upgrading
+  the wheel gets one too. A brand-new file (current revision `None`) has nothing
+  to preserve and is skipped, as is a database already at head.
+- **A database stamped at an unknown revision raises `DatabaseAheadOfCheckout`**
+  with instructions. That state means a newer build or another branch migrated
+  it; Alembic's own message is just "Can't locate revision", which explains
+  nothing. Note `iterate_revisions` raises the low-level `ResolutionError` while
+  `command.upgrade` wraps the same fault as `CommandError` — catch both.
+
+**Worktrees share the database, which is worse than sharing a port.** A linked
+worktree inherits nothing gitignored, so a fresh one has no `.venv`, no
+`node_modules`, and no database setting — meaning it defaults to the real
+`~/.openrep/openrep.db`. Boot a branch with a new migration and that file is
+upgraded in place; every older checkout then fails to start, because its history
+does not contain the revision the file now carries. Ports announce a collision,
+this does not. `make worktree-init` writes a gitignored `backend/.env` pointing
+at `.dev/openrep.db`, which covers every entrypoint whose cwd is `backend/`, and
+`scripts/dev.sh` exports the same path (a real environment variable outranks the
+dotenv file, and both name the same path, so the two compose). Both detect a
+linked worktree by `.git` being a *file* rather than a directory — the main
+checkout deliberately keeps using real training data.
 
 **Domain model** (`backend/openrep/models/`): `Exercise`, `Workout`, `SetEntry`.
 A `SetEntry` belongs to one `Workout` and one `Exercise`, and carries

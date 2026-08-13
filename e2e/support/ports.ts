@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 /**
  * Single source of truth for the suite's ports and the frontend origin.
  *
@@ -6,8 +8,15 @@
  * already listening — including a dev server opened against the real
  * ~/.openrep/openrep.db — and these specs create and delete rows. e2e must
  * only ever talk to a server it started itself, against the throwaway DB the
- * config points at. Env overrides exist for when the defaults are squatted by
- * another process (e.g. a second dev server that walked from 5173 to 5174).
+ * config points at.
+ *
+ * Derived from the checkout path rather than fixed, because two worktrees
+ * running the suite at once would otherwise fight over one pair of ports —
+ * and `reuseExistingServer: false` turns that into a hard failure, correctly,
+ * rather than the far worse alternative of adopting the other run's backend.
+ * Deterministic so a given worktree is reproducible; scripts/dev.sh keeps its
+ * own range (20000–22000) clear of this one. Env overrides exist for when the
+ * derived pair is squatted by some unrelated process.
  *
  * Both playwright.config.ts and any spec that writes its own `storageState`
  * must import from here: a localStorage origin derived independently (say,
@@ -22,7 +31,9 @@ function resolvePort(raw: string | undefined, fallback: number): number {
   return Number(raw) || fallback
 }
 
-export const FRONTEND_PORT = resolvePort(process.env.E2E_FRONTEND_PORT, 5174)
-export const BACKEND_PORT = resolvePort(process.env.E2E_BACKEND_PORT, 8766)
+const slot = parseInt(createHash('sha1').update(process.cwd()).digest('hex').slice(0, 8), 16) % 500
+
+export const FRONTEND_PORT = resolvePort(process.env.E2E_FRONTEND_PORT, 23000 + slot * 2)
+export const BACKEND_PORT = resolvePort(process.env.E2E_BACKEND_PORT, 23001 + slot * 2)
 
 export const FRONTEND_ORIGIN = `http://localhost:${FRONTEND_PORT}`

@@ -5,6 +5,10 @@ node_modules/
 *.db
 *.db-journal
 
+# Per-worktree dev state written by scripts/dev.sh: the resolved ports and,
+# in a linked worktree, that worktree's own scratch database.
+.dev/
+
 .env
 .DS_Store
 

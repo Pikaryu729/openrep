@@ -1,6 +1,6 @@
-.PHONY: help install backend-install frontend-install lint format \
+.PHONY: help install worktree-init backend-install frontend-install lint format \
         type-check test backend-test frontend-test e2e-test \
-        dev dev-backend dev-frontend build build-dist smoke-test \
+        dev dev-backend dev-frontend dev-ports build build-dist smoke-test \
         clean clean-backend clean-frontend clean-all
 
 # Default target
@@ -8,14 +8,16 @@ help:
 	@echo "OpenRep Development Environment"
 	@echo ""
 	@echo "Setup & Installation:"
+	@echo "  make worktree-init        Set up a fresh git worktree (deps + scratch database)"
 	@echo "  make install              Install all dependencies (backend + frontend)"
 	@echo "  make backend-install      Install backend dependencies (uv sync)"
 	@echo "  make frontend-install     Install frontend dependencies (pnpm install)"
 	@echo ""
 	@echo "Development:"
-	@echo "  make dev-backend          Start backend dev server on :8765"
-	@echo "  make dev-frontend         Start frontend dev server on :5173"
-	@echo "  make dev                  Show instructions for running both servers"
+	@echo "  make dev                  Start both dev servers on this worktree's ports"
+	@echo "  make dev-backend          Start only the backend"
+	@echo "  make dev-frontend         Start only the frontend"
+	@echo "  make dev-ports            Print this worktree's ports and database"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  make lint                 Run all linters (ruff + oxlint)"
@@ -44,6 +46,12 @@ help:
 install: backend-install frontend-install
 	@echo "✓ All dependencies installed"
 
+# Use this instead of `install` in a fresh git worktree: it also points the
+# worktree at its own scratch database, so a branch carrying a new migration
+# cannot upgrade ~/.openrep/openrep.db out from under every other checkout.
+worktree-init:
+	./scripts/worktree-init.sh
+
 backend-install:
 	@echo "→ Installing backend dependencies..."
 	cd backend && uv sync
@@ -56,24 +64,22 @@ frontend-install:
 
 ## Development Servers
 
+# scripts/dev.sh owns port and database selection for all three of these, so
+# that two worktrees can run side by side. Ports are derived from the worktree
+# path (stable across restarts) and reported in .dev/ports.env; a linked
+# worktree also gets its own database. Splitting backend and frontend across two
+# terminals still works — the second one adopts the ports the first wrote.
 dev:
-	@echo "To start development servers, run in separate terminals:"
-	@echo ""
-	@echo "  Terminal 1 (Backend on :8765):"
-	@echo "    $$ make dev-backend"
-	@echo ""
-	@echo "  Terminal 2 (Frontend on :5173):"
-	@echo "    $$ make dev-frontend"
-	@echo ""
-	@echo "Or use your IDE's run configurations for parallel execution."
+	./scripts/dev.sh
 
 dev-backend: backend-install
-	@echo "→ Starting backend dev server..."
-	cd backend && uv run uvicorn openrep.main:app --reload --port 8765
+	./scripts/dev.sh backend
 
 dev-frontend: frontend-install
-	@echo "→ Starting frontend dev server..."
-	cd frontend && pnpm dev
+	./scripts/dev.sh frontend
+
+dev-ports:
+	@./scripts/dev.sh ports
 
 ## Code Quality
 
