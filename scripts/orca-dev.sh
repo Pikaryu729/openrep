@@ -21,6 +21,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STATE_DIR="$(git -C "$ROOT" rev-parse --absolute-git-dir)/orca"
 ENV_FILE="$STATE_DIR/dev.env"
+# Every worktree's state lives under the one common git dir, which is how a
+# worktree finds out what its siblings have already claimed.
+COMMON_DIR="$(cd "$ROOT" && cd "$(git rev-parse --git-common-dir)" && pwd)"
 
 # Which binary is Orca's CLI, per Orca's own resolution order. The Linux case
 # is not pedantry: outside an Orca terminal, `orca` on Linux is the GNOME Orca
@@ -44,6 +47,25 @@ log() { printf '[orca-dev] %s\n' "$*" >&2; }
 # server, so a worktree that squatted on them would break `pnpm --dir e2e test`
 # for the whole machine — they are skipped even when free.
 RESERVED_PORTS=" 8766 5174 "
+
+# Ports a sibling worktree has already written down. Probing for a listener is
+# not enough on its own: a sibling whose servers happen to be stopped still
+# owns its recorded pair for good, so allocating around only what is live hands
+# the same pair out twice and both worktrees collide the next time they run.
+reserve_sibling_ports() {
+  local file port
+  for file in "$COMMON_DIR"/orca/dev.env "$COMMON_DIR"/worktrees/*/orca/dev.env; do
+    if [ ! -f "$file" ] || [ "$file" = "$ENV_FILE" ]; then
+      continue
+    fi
+    while read -r port; do
+      case "$port" in
+        '' | *[!0-9]*) continue ;;
+      esac
+      RESERVED_PORTS="$RESERVED_PORTS$port "
+    done < <(grep -h '^OPENREP_[A-Z]*_PORT=' "$file" | cut -d= -f2)
+  done
+}
 
 # The connect happens in a subshell so the descriptor closes with it.
 port_is_listening() {
@@ -79,13 +101,17 @@ wait_for_port() {
 
 # The backend and frontend tabs start at the same time, so allocation is done
 # under a lock and written once. Delete dev.env to reallocate.
+#
+# The lock lives in the common git dir, not this worktree's: it has to
+# serialize sibling worktrees against each other too, or two of them created at
+# the same moment both read the sibling ports before either writes its own.
 allocate_env() {
-  mkdir -p "$STATE_DIR"
+  mkdir -p "$STATE_DIR" "$COMMON_DIR/orca"
   if [ -f "$ENV_FILE" ]; then
     return 0
   fi
 
-  local lock="$STATE_DIR/dev.lock" waited=0
+  local lock="$COMMON_DIR/orca/dev.lock" waited=0
   until mkdir "$lock" 2>/dev/null; do
     if [ -f "$ENV_FILE" ]; then
       return 0
@@ -100,6 +126,7 @@ allocate_env() {
 
   if [ ! -f "$ENV_FILE" ]; then
     local backend frontend
+    reserve_sibling_ports
     backend="$(pick_port 8765)"
     frontend="$(pick_port 5173)"
     cat >"$ENV_FILE" <<EOF

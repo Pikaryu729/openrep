@@ -97,9 +97,11 @@ own. `scripts/orca-dev.sh` backs all of it, and can be run by hand outside Orca:
 ```
 
 Because several worktrees run at once, none of them may assume the defaults:
-each gets the first free port at or above 8765/5173 — skipping the pair `e2e`
-reserves — plus its own SQLite file, recorded in that worktree's git directory
-(`./scripts/orca-dev.sh env` prints them). Delete
+each gets the first port at or above 8765/5173 that is neither in use, nor
+reserved by `e2e`, nor already claimed by a sibling worktree — plus its own
+SQLite file, recorded in that worktree's git directory
+(`./scripts/orca-dev.sh env` prints them). A claim outlives the servers, so a
+sibling that is merely stopped keeps its pair. Delete
 `$(git rev-parse --git-dir)/orca/dev.env` to reallocate.
 
 ### Tests
