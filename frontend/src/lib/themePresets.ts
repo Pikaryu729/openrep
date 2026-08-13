@@ -36,7 +36,9 @@ const RAW_PRESETS = {
     label: 'Graphite',
     swatch: '#3f3f46',
     light: { primary: '#3f3f46', primaryForeground: '#ffffff' },
-    dark: { primary: '#a1a1aa', primaryForeground: '#18181b' },
+    // zinc-300, not zinc-400: the button color for the whole app in dark mode,
+    // and 400 reads as disabled next to real disabled buttons.
+    dark: { primary: '#d4d4d8', primaryForeground: '#18181b' },
   },
   ocean: {
     label: 'Ocean',

@@ -91,7 +91,7 @@
 
 :root[data-mode='dark'] {
   color-scheme: dark;
-  --accent: #a1a1aa;
+  --accent: #d4d4d8;
   --accent-contrast: #18181b;
   --background: #131316;
   --foreground: #ececf0;
@@ -109,15 +109,15 @@
   --destructive-foreground: #2a0a0a;
   --border: #32323a;
   --input: #32323a;
-  --ring: #a1a1aa;
+  --ring: #d4d4d8;
   --sidebar: #1c1c21;
   --sidebar-foreground: #ececf0;
-  --sidebar-primary: #a1a1aa;
+  --sidebar-primary: #d4d4d8;
   --sidebar-primary-foreground: #18181b;
   --sidebar-accent: #26262c;
   --sidebar-accent-foreground: #ececf0;
   --sidebar-border: #32323a;
-  --sidebar-ring: #a1a1aa;
+  --sidebar-ring: #d4d4d8;
 
   /* Okabe-Ito shifted +0.10 in OKLCH lightness. */
   --chart-1: #3491d3;

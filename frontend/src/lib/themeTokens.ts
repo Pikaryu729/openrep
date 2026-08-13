@@ -264,7 +264,7 @@ export const BASE_LIGHT: ColorMap = {
 }
 
 export const BASE_DARK: ColorMap = {
-  primary: '#a1a1aa',
+  primary: '#d4d4d8',
   primaryForeground: '#18181b',
   background: '#131316',
   foreground: '#ececf0',
@@ -282,15 +282,15 @@ export const BASE_DARK: ColorMap = {
   destructiveForeground: '#2a0a0a',
   border: '#32323a',
   input: '#32323a',
-  ring: '#a1a1aa',
+  ring: '#d4d4d8',
   sidebar: '#1c1c21',
   sidebarForeground: '#ececf0',
-  sidebarPrimary: '#a1a1aa',
+  sidebarPrimary: '#d4d4d8',
   sidebarPrimaryForeground: '#18181b',
   sidebarAccent: '#26262c',
   sidebarAccentForeground: '#ececf0',
   sidebarBorder: '#32323a',
-  sidebarRing: '#a1a1aa',
+  sidebarRing: '#d4d4d8',
   // Okabe-Ito, shifted +0.10 in OKLCH lightness. See CHART SERIES note below.
   chart1: '#3491d3',
   chart2: '#f87e36',
