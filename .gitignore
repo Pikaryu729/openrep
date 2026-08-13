@@ -12,3 +12,7 @@ node_modules/
 backend/dist/
 backend/openrep/static/
 *.egg-info/
+
+
+
+.claude/worktrees
