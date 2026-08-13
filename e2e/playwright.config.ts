@@ -5,8 +5,10 @@ import { defineConfig, devices } from '@playwright/test'
 // already listening — including a dev server opened against the real
 // ~/.openrep/openrep.db — and these specs create and delete rows. e2e must
 // only ever talk to a server it started itself, against the throwaway DB below.
-const FRONTEND_PORT = 5174
-const BACKEND_PORT = 8766
+// Env overrides exist for when the defaults are squatted by another process
+// (e.g. a second dev server that walked from 5173 to 5174).
+const FRONTEND_PORT = Number(process.env.E2E_FRONTEND_PORT ?? 5174)
+const BACKEND_PORT = Number(process.env.E2E_BACKEND_PORT ?? 8766)
 
 export default defineConfig({
   testDir: './tests',
@@ -17,6 +19,20 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${FRONTEND_PORT}`,
     trace: 'on-first-retry',
+    // Pre-marks onboarding as done so the first-run wizard never takes over
+    // the shell mid-spec: browser contexts start with empty localStorage, and
+    // the shared throwaway DB can be empty on a fresh checkout, which is
+    // exactly the state the wizard triggers on. onboarding.spec.ts opts back
+    // out of this to test the wizard itself.
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: `http://localhost:${FRONTEND_PORT}`,
+          localStorage: [{ name: 'openrep.onboarding', value: 'done' }],
+        },
+      ],
+    },
   },
   projects: [
     {

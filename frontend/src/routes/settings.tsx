@@ -6,6 +6,7 @@ import { ThemeEditor } from '@/components/ThemeEditor'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { api, type BackupDocument, type BackupImportSummary } from '@/lib/api'
+import { saveOnboardingFlag } from '@/lib/onboarding'
 import { cn } from '@/lib/utils'
 import { useTheme, type ThemeMode } from '@/lib/theme'
 import { THEME_PRESET_DEFINITIONS, THEME_PRESETS } from '@/lib/themePresets'
@@ -29,8 +30,32 @@ export function SettingsPage() {
         <AppearanceCard />
         <UnitsCard />
         <BackupCard />
+        <OnboardingCard />
       </div>
     </section>
+  )
+}
+
+function OnboardingCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Onboarding</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <SettingsRow label="First-run setup">
+          {/* The root layout's gate subscribes to the flag, so writing
+              'replay' swaps the wizard in immediately — no navigation. */}
+          <Button variant="outline" onClick={() => saveOnboardingFlag('replay')}>
+            Replay onboarding
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            Walk through units, theme and the starter exercise library again. Nothing is
+            duplicated or deleted.
+          </span>
+        </SettingsRow>
+      </CardContent>
+    </Card>
   )
 }
 

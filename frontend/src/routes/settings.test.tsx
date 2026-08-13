@@ -182,6 +182,16 @@ describe('SettingsPage units', () => {
   })
 })
 
+describe('SettingsPage onboarding', () => {
+  it('sets the replay flag so the root gate swaps the wizard in', () => {
+    renderWithClient(<SettingsPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Replay onboarding' }))
+
+    expect(localStorage.getItem('openrep.onboarding')).toBe('replay')
+  })
+})
+
 describe('SettingsPage backup', () => {
   it('imports a chosen backup file with the selected mode', async () => {
     const document_ = {
