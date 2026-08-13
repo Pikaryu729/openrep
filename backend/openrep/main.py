@@ -6,7 +6,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from openrep import __version__
-from openrep.api.routes import analytics, backup, dashboard, exercises, sets, workouts
+from openrep.api.routes import analytics, backup, dashboard, exercises, sets, widgets, workouts
 from openrep.core.config import settings
 from openrep.core.migrate import run_migrations
 from openrep.spa import mount_spa
@@ -52,6 +52,7 @@ api.include_router(sets.router)
 api.include_router(analytics.router)
 api.include_router(backup.router)
 api.include_router(dashboard.router)
+api.include_router(widgets.router)
 
 
 @api.get("/health")

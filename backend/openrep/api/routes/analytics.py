@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 from sqlmodel import select
 
 from openrep.api.deps import SessionDep
+from openrep.core.formulas import estimated_1rm
 from openrep.models.exercise import Exercise
 from openrep.models.set import SetEntry
 from openrep.models.workout import Workout
@@ -17,13 +18,6 @@ from openrep.schemas.analytics import (
 )
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
-
-
-def estimated_1rm(weight_kg: float, reps: int) -> float:
-    """Epley formula. Reps of 1 return the weight itself."""
-    if reps <= 1:
-        return weight_kg
-    return weight_kg * (1 + reps / 30)
 
 
 @router.get("/exercises/{exercise_id}/history", response_model=list[SetHistoryPoint])

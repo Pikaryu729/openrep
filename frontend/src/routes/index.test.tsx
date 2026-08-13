@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../lib/api'
@@ -19,6 +19,7 @@ vi.mock('../lib/api', async (importOriginal) => {
         exerciseHistory: vi.fn(),
       },
       workouts: { list: vi.fn() },
+      widgets: { list: vi.fn(), data: vi.fn() },
     },
   }
 })
@@ -74,6 +75,7 @@ beforeEach(() => {
   vi.mocked(api.analytics.recentPersonalRecords).mockResolvedValue(records)
   vi.mocked(api.analytics.volumeByCategory).mockResolvedValue([])
   vi.mocked(api.workouts.list).mockResolvedValue([])
+  vi.mocked(api.widgets.list).mockResolvedValue([])
 })
 
 afterEach(() => {
@@ -350,5 +352,110 @@ describe('Dashboard layout import', () => {
     expect(
       await screen.findByText('This file is not an OpenRep v1 dashboard layout.'),
     ).toBeInTheDocument()
+  })
+})
+
+describe('Dashboard custom widgets', () => {
+  const customWidget = {
+    id: 7,
+    name: 'Weekly tonnage',
+    description: 'Total volume per week',
+    visualization: 'table' as const,
+    query: {
+      source: 'sets' as const,
+      filters: [],
+      group_by: 'week' as const,
+      metrics: [{ key: 'm1', agg: 'sum' as const, field: 'volume', label: 'Tonnage' }],
+      sort: { by: 'group', direction: 'asc' as const },
+      limit: null,
+      range_days: 90,
+    },
+    created_at: '2026-08-01T00:00:00Z',
+    updated_at: '2026-08-01T00:00:00Z',
+  }
+
+  const result = {
+    columns: [
+      { key: 'group', label: 'Week', kind: 'group' as const, unit: 'none' as const },
+      { key: 'm1', label: 'Tonnage', kind: 'metric' as const, unit: 'weight' as const },
+    ],
+    rows: [{ group: '2026-W31', m1: 5100 }],
+    group_by: 'week' as const,
+    truncated: false,
+  }
+
+  it('offers your saved widgets alongside the built-in ones', async () => {
+    vi.mocked(api.widgets.list).mockResolvedValue([customWidget])
+    renderWithClient(<Dashboard />)
+    await enterEditMode()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add widget' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add widget' })
+
+    expect(within(dialog).getByText('Weekly tonnage')).toBeInTheDocument()
+    // The bare `custom` type is never offered — only actual saved widgets.
+    expect(within(dialog).queryByRole('button', { name: 'Add Your widget' })).toBeNull()
+  })
+
+  it('adds a saved widget already pointed at its definition', async () => {
+    vi.mocked(api.widgets.list).mockResolvedValue([customWidget])
+    vi.mocked(api.widgets.data).mockResolvedValue(result)
+    renderWithClient(<Dashboard />)
+    await enterEditMode()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add widget' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add widget' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add Weekly tonnage' }))
+
+    // Titled by the user's name for it, not by the catalog label.
+    expect(widgetTitles()).toContain('Weekly tonnage')
+    await waitFor(() => expect(api.widgets.data).toHaveBeenCalledWith(7, expect.anything()))
+  })
+
+  it('saves the placement as a widget_id, not a copy of the query', async () => {
+    vi.mocked(api.widgets.list).mockResolvedValue([customWidget])
+    vi.mocked(api.widgets.data).mockResolvedValue(result)
+    vi.mocked(api.dashboard.saveConfig).mockResolvedValue(DEFAULT_CONFIG)
+    renderWithClient(<Dashboard />)
+    await enterEditMode()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add widget' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add widget' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add Weekly tonnage' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(api.dashboard.saveConfig).toHaveBeenCalled())
+    const saved = vi.mocked(api.dashboard.saveConfig).mock.calls[0][0]
+    const placement = saved.widgets.find((entry) => entry.type === 'custom')
+    expect(placement?.options).toEqual({ widget_id: 7 })
+  })
+
+  it('says so when the widget behind a placement was deleted', async () => {
+    vi.mocked(api.widgets.list).mockResolvedValue([])
+    vi.mocked(api.dashboard.getConfig).mockResolvedValue({
+      ...DEFAULT_CONFIG,
+      updated_at: '2026-08-01T00:00:00Z',
+      widgets: [{ id: 'x', type: 'custom', options: { widget_id: 99 } }],
+    })
+    renderWithClient(<Dashboard />)
+
+    expect(await screen.findByText(/That widget was deleted/)).toBeInTheDocument()
+    // A dangling placement must never silently ask the server for its data.
+    expect(api.widgets.data).not.toHaveBeenCalled()
+  })
+
+  it('resolves the widget range on the client, not the server', async () => {
+    vi.mocked(api.widgets.list).mockResolvedValue([customWidget])
+    vi.mocked(api.widgets.data).mockResolvedValue(result)
+    vi.mocked(api.dashboard.getConfig).mockResolvedValue({
+      ...DEFAULT_CONFIG,
+      updated_at: '2026-08-01T00:00:00Z',
+      widgets: [{ id: 'x', type: 'custom', options: { widget_id: 7 } }],
+    })
+    renderWithClient(<Dashboard />)
+
+    await waitFor(() => expect(api.widgets.data).toHaveBeenCalled())
+    const [, range] = vi.mocked(api.widgets.data).mock.calls[0]
+    expect(range?.start).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 })

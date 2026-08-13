@@ -57,6 +57,25 @@ network blip reads as data loss. If a widget stores an `exercise_id`, it must
 also resolve it against the `['exercises']` list: the history endpoint answers
 a deleted exercise with `[]`, not a 404.
 
+### User-created widgets
+
+`custom` is the one widget type whose definition is not in the catalog: its
+options are just `{ widget_id }`, and the query, visualization and title belong
+to a row in `custom_widget` (see CLAUDE.md). Consequences:
+
+- The Add-widget dialog lists saved widgets individually and never offers the
+  bare `custom` type — see `BUILT_IN_TYPES` in `routes/index.tsx`.
+- `WidgetEditor.tsx` renders itself from `GET /api/widgets/fields`. Do not
+  hardcode fields, operators or aggregates in the client; add them to
+  `backend/openrep/schemas/widget_query.py` and they appear here.
+- `lib/widgetQuery.ts` is the client half: blanks the editor starts from, the
+  human phrasing of a query, and how a result row becomes a chart or a table.
+  The server stays the authority on what is *legal* and re-validates everything;
+  `queryProblems()` exists only so the editor can disable Save and say why.
+- A custom placement resolves its `widget_id` against the `['widgets']` list for
+  the same reason a pinned exercise does: a deleted widget must read as deleted,
+  not as an empty chart.
+
 ### Known deliberate exception
 
 The exercise picker uses a styled **native `<select>`** (see
@@ -95,12 +114,24 @@ above them is data.
   math. Anything cleverer in that script would be a second implementation of
   `resolveColors()` free to drift from the first. Bump `THEME_SCHEMA_VERSION`
   and extend the v1 migration if the persisted shape changes.
-- **Chart series colors are editable but audited, not locked.**
-  `src/lib/themeAudit.ts` re-runs WCAG contrast and dichromat-simulation checks
-  live and warns; it never refuses. Its ΔE thresholds are calibrated against
-  what Okabe-Ito actually achieves (~0.14 normal, ~0.069 simulated) — set them
-  higher and a known-good palette fails. Every shipped preset is asserted
-  warning-free in `themeAudit.test.ts`, so a new preset must pass it too.
+- **`--chart-1..5` are series identity, not derived from `--accent`.** They are
+  the categorical colors for charts plotting more than one thing (only custom
+  widgets, so far). `--accent` is any hue the user typed into settings, so
+  series identity cannot depend on it. Single-series charts still use
+  `--accent`; assignment is by slot order and never cycles, so a sixth series
+  needs a new slot rather than a generated hue.
+- **They are editable but audited, not locked.** `src/lib/themeAudit.ts` re-runs
+  the WCAG contrast and dichromat-simulation checks live and *warns*; it never
+  refuses. Its ΔE thresholds are calibrated against what Okabe-Ito actually
+  achieves (~0.14 normal, ~0.069 simulated) — set them higher and a known-good
+  palette fails. Every shipped preset is asserted warning-free in
+  `themeAudit.test.ts`, so a new preset must pass it too.
+- **The series defaults are per-mode**, unlike every earlier version of this
+  file: one palette cannot clear 3:1 against both a near-white and a near-black
+  surface, and presets move those surfaces further still. They are Okabe-Ito
+  shifted -0.12 (light) and +0.10 (dark) in OKLCH lightness — a uniform shift,
+  which preserves the per-series lightness differences that survive dichromat
+  simulation at all.
 - Tailwind's `dark:` variant is bound to `[data-mode='dark']` via
   `@custom-variant`, not to `prefers-color-scheme`.
 - The API client calls **same-origin `/api`** by default (`src/lib/api.ts`);

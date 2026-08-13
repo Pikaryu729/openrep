@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { seedTraining } from '../support/seed'
 
 /**
  * The dashboard config is a SINGLETON, so unlike every other spec here it
@@ -75,4 +76,98 @@ test('exports the layout as a JSON file', async ({ page }) => {
   const file = await download
 
   expect(file.suggestedFilename()).toMatch(/^openrep-dashboard-\d{4}-\d{2}-\d{2}\.json$/)
+})
+
+/**
+ * Custom-widget placements live here rather than in widgets.spec.ts: they read
+ * and write the dashboard singleton, so they need this file's serial mode and
+ * its afterEach reset.
+ */
+test('a saved custom widget can be placed on the dashboard', async ({ page }) => {
+  const stamp = Date.now()
+  const { exercise } = await seedTraining(page.request, stamp)
+  const name = `Dashboard widget ${stamp}`
+
+  const created = await page.request
+    .post('/api/widgets', {
+      data: {
+        name,
+        description: null,
+        visualization: 'table',
+        query: {
+          source: 'sets',
+          filters: [{ field: 'exercise_id', op: 'eq', value: exercise.id }],
+          group_by: 'exercise',
+          metrics: [{ key: 'm1', agg: 'sum', field: 'volume', label: 'Tonnage' }],
+          sort: { by: 'group', direction: 'asc' },
+          limit: null,
+          range_days: null,
+        },
+      },
+    })
+    .then((response) => response.json())
+
+  try {
+    await page.goto('/')
+    await page.getByRole('button', { name: 'Edit dashboard' }).click()
+    await page.getByRole('button', { name: 'Add widget' }).click()
+    await page
+      .getByRole('dialog', { name: 'Add widget' })
+      .getByRole('button', { name: `Add ${name}` })
+      .click()
+
+    // Titled by the user's name for it, and drawing real data: 100x5 + 110x3.
+    await expect(page.getByRole('heading', { name })).toBeVisible()
+    await expect(page.getByRole('cell', { name: '830', exact: true })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Save' }).click()
+    await expect(page.getByRole('button', { name: 'Edit dashboard' })).toBeVisible()
+
+    await page.reload()
+    await expect(page.getByRole('heading', { name })).toBeVisible()
+  } finally {
+    await page.request.delete(`/api/widgets/${created.id}`)
+  }
+})
+
+test('deleting a widget leaves its dashboard placement explaining itself', async ({ page }) => {
+  const stamp = Date.now()
+  const created = await page.request
+    .post('/api/widgets', {
+      data: {
+        name: `Doomed widget ${stamp}`,
+        description: null,
+        visualization: 'bar',
+        query: {
+          source: 'sets',
+          filters: [],
+          group_by: 'week',
+          metrics: [{ key: 'm1', agg: 'count', field: null, label: null }],
+          sort: { by: 'group', direction: 'asc' },
+          limit: null,
+          range_days: null,
+        },
+      },
+    })
+    .then((response) => response.json())
+
+  await page.request.put('/api/dashboard/config', {
+    data: {
+      version: 1,
+      widgets: [{ id: 'placed', type: 'custom', options: { widget_id: created.id } }],
+    },
+  })
+
+  await page.goto('/widgets')
+  await page.getByRole('button', { name: `Delete Doomed widget ${stamp}` }).click()
+  await page
+    .getByRole('dialog', { name: `Delete "Doomed widget ${stamp}"?` })
+    .getByRole('button', { name: 'Delete' })
+    .click()
+  await expect(page.getByRole('heading', { name: `Doomed widget ${stamp}` })).toHaveCount(0)
+
+  // The placement survives the delete and says what happened, rather than
+  // erroring or quietly rendering an empty chart.
+  await page.goto('/')
+  await expect(page.getByText(/That widget was deleted/)).toBeVisible()
 })

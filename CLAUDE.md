@@ -120,6 +120,32 @@ exercise ids (which widgets store), and restoring last month's backup should
 not rearrange your dashboard. Layouts export separately, referencing exercises
 by name so they are portable between databases.
 
+**User-created widgets are a declarative query language, not code.** A custom
+widget (`openrep/models/custom_widget.py`, `/api/widgets`) stores a `WidgetQuery`
+— source, filters, group-by, aggregate metrics, sort, limit — as JSON, and
+`openrep/core/widget_query.py` executes it. Everything the user can name comes
+from the whitelists in `openrep/schemas/widget_query.py`, so a stored query can
+never reach data or operations that module has not enumerated. Points worth
+knowing:
+
+- **This server DOES have a catalog, unlike the dashboard layout.** The layout's
+  `options` is opaque because the server never interprets it; a query is
+  executed, so the whitelist has to live server-side. `GET /api/widgets/fields`
+  publishes it, and the editor renders itself from that — adding a field or an
+  aggregate is a one-place change in `widget_query.py`.
+- **The engine filters and aggregates in Python**, pushing only the
+  `performed_on` window into SQL. Two implementations of what `contains` means
+  (SQLAlchemy for real columns, Python for computed ones like `volume` and
+  `estimated_1rm`) is the bug you would be buying; `analytics.py` already scans
+  and aggregates this way.
+- **The server never resolves "today".** `range_days` is stored on the query but
+  resolved to a `start` date by the client, like every other date in this app.
+- Deleting a custom widget is deliberately **not** blocked by dashboard
+  placements — there is no FK, and the layout already tolerates references it
+  cannot resolve.
+- `estimated_1rm` lives in `openrep/core/formulas.py` so both `analytics.py` and
+  the query engine share one definition.
+
 **Analytics/derived-data endpoints** live in `openrep/api/routes/analytics.py` +
 `openrep/schemas/analytics.py` (personal records, volume-by-day, estimated 1RM via
 the Epley formula). This is the intended growth point for the "complex data

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { api, type VolumeByDay } from '@/lib/api'
 import type {
   CategoryOptions,
+  CustomOptions,
   ProgressOptions,
   RecentOptions,
   RecordsOptions,
@@ -17,6 +18,8 @@ import type {
 } from '@/lib/dashboard'
 import { compact, longDate, shortDate } from '@/lib/format'
 import { kgToDisplay, type UnitSystem, useUnits, weightUnit } from '@/lib/units'
+import { startDateForDays } from '@/lib/widgetQuery'
+import { CustomWidgetResult } from './CustomWidgetView'
 import { WidgetState } from './WidgetStates'
 import { rangeStart } from './widgetData'
 
@@ -248,6 +251,59 @@ export function CategoryBreakdownWidget({ options }: { options: CategoryOptions 
       emptyMessage="No volume logged in this range."
     >
       {rows && <CategoryVolumeChart rows={rows} units={units} />}
+    </WidgetState>
+  )
+}
+
+/**
+ * A widget the user built in the editor.
+ *
+ * Two lookups rather than one: the definition (from the `['widgets']` list)
+ * gives the visualization and lets us tell "you deleted this widget" from "the
+ * query returned nothing" — the data endpoint would 404 either way, but the
+ * list is already cached and gives us the widget's name for the message.
+ */
+export function CustomWidget({ options }: { options: CustomOptions }) {
+  const widgetsQuery = useQuery({ queryKey: ['widgets'], queryFn: api.widgets.list })
+  const widget = widgetsQuery.data?.find((entry) => entry.id === options.widget_id)
+
+  const start = startDateForDays(widget?.query.range_days ?? null)
+  const dataQuery = useQuery({
+    queryKey: ['widgets', options.widget_id, 'data', start],
+    queryFn: () => api.widgets.data(options.widget_id as number, { start }),
+    enabled: widget !== undefined,
+  })
+
+  if (options.widget_id == null) {
+    return (
+      <p className="text-muted-foreground text-sm">Choose a widget in this widget's settings.</p>
+    )
+  }
+
+  // Same shape as the deleted-exercise check above: the list is the authority
+  // on what still exists, so a stale placement says so instead of erroring.
+  if (widgetsQuery.data && !widget) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        That widget was deleted — pick another in this widget's settings, or build a new one on the{' '}
+        <Link to="/widgets" className="underline">
+          widgets page
+        </Link>
+        .
+      </p>
+    )
+  }
+
+  return (
+    <WidgetState
+      error={dataQuery.error ?? widgetsQuery.error}
+      loading={!dataQuery.data || !widget}
+      empty={dataQuery.data?.rows.length === 0}
+      emptyMessage="No sets match this widget's filters."
+    >
+      {widget && dataQuery.data && (
+        <CustomWidgetResult widget={widget} result={dataQuery.data} />
+      )}
     </WidgetState>
   )
 }

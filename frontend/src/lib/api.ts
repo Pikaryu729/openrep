@@ -123,6 +123,130 @@ export interface DashboardConfig {
   updated_at: string | null
 }
 
+// --- user-created widgets --------------------------------------------------
+// The query language mirrors backend/openrep/schemas/widget_query.py. The
+// *catalog* (which fields exist, which operators each one takes) is fetched
+// from /widgets/fields rather than duplicated here: the server executes these
+// queries, so it owns the whitelist, and a second copy would drift.
+
+export type FilterOp =
+  | 'eq'
+  | 'ne'
+  | 'gt'
+  | 'gte'
+  | 'lt'
+  | 'lte'
+  | 'in'
+  | 'contains'
+  | 'is_null'
+  | 'not_null'
+export type Aggregate = 'sum' | 'avg' | 'min' | 'max' | 'count' | 'count_distinct'
+export type GroupBy =
+  | 'none'
+  | 'day'
+  | 'week'
+  | 'month'
+  | 'weekday'
+  | 'exercise'
+  | 'category'
+  | 'rep_range'
+export type Visualization = 'bar' | 'line' | 'table' | 'stat'
+export type QueryUnit = 'weight' | 'reps' | 'rpe' | 'count' | 'none'
+export type FieldKind = 'number' | 'text' | 'date'
+
+export interface QueryFilter {
+  field: string
+  op: FilterOp
+  /** A scalar, or an array when `op` is `in`. Null for the blank checks. */
+  value: string | number | (string | number)[] | null
+}
+
+export interface QueryMetric {
+  key: string
+  agg: Aggregate
+  field: string | null
+  label: string | null
+}
+
+export interface QuerySort {
+  by: string
+  direction: 'asc' | 'desc'
+}
+
+export interface WidgetQuery {
+  source: 'sets'
+  filters: QueryFilter[]
+  group_by: GroupBy
+  metrics: QueryMetric[]
+  sort: QuerySort
+  limit: number | null
+  range_days: number | null
+}
+
+export interface QueryColumn {
+  key: string
+  label: string
+  kind: 'group' | 'metric'
+  unit: QueryUnit
+}
+
+export interface QueryResultRow {
+  group: string | null
+  [metricKey: string]: string | number | null
+}
+
+export interface QueryResult {
+  columns: QueryColumn[]
+  rows: QueryResultRow[]
+  group_by: GroupBy
+  truncated: boolean
+}
+
+export interface CustomWidget {
+  id: number
+  name: string
+  description: string | null
+  visualization: Visualization
+  query: WidgetQuery
+  created_at: string
+  updated_at: string
+}
+
+export interface CustomWidgetInput {
+  name: string
+  description: string | null
+  visualization: Visualization
+  query: WidgetQuery
+}
+
+export interface QueryFieldInfo {
+  key: string
+  label: string
+  kind: FieldKind
+  unit: QueryUnit
+  aggregatable: boolean
+  description: string
+  ops: FilterOp[]
+  aggregates: Aggregate[]
+}
+
+export interface QueryChoice {
+  value: string
+  label: string
+}
+
+export interface QueryCatalog {
+  fields: QueryFieldInfo[]
+  group_by: QueryChoice[]
+  aggregates: QueryChoice[]
+  visualizations: QueryChoice[]
+  range_days: number[]
+  rep_ranges: string[]
+  max_filters: number
+  max_metrics: number
+  max_rows: number
+}
+
 export interface BackupDocument {
   app: string
   version: number
@@ -204,6 +328,27 @@ export const api = {
       request<DashboardConfig>('/dashboard/config', {
         method: 'PUT',
         body: JSON.stringify(config),
+      }),
+  },
+  widgets: {
+    /** The query language itself. Cached hard by callers — it only changes
+     * when the server does. */
+    catalog: () => request<QueryCatalog>('/widgets/fields'),
+    list: () => request<CustomWidget[]>('/widgets'),
+    get: (id: number) => request<CustomWidget>(`/widgets/${id}`),
+    create: (data: CustomWidgetInput) =>
+      request<CustomWidget>('/widgets', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: Partial<CustomWidgetInput>) =>
+      request<CustomWidget>(`/widgets/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    delete: (id: number) => request<void>(`/widgets/${id}`, { method: 'DELETE' }),
+    // `range` resolves the query's own range_days: the server never decides
+    // what "today" is (see lib/widgetQuery.ts).
+    data: (id: number, range: DateRange = {}) =>
+      request<QueryResult>(`/widgets/${id}/data${queryString({ ...range })}`),
+    preview: (query: WidgetQuery, range: DateRange = {}) =>
+      request<QueryResult>(`/widgets/preview${queryString({ ...range })}`, {
+        method: 'POST',
+        body: JSON.stringify(query),
       }),
   },
   backup: {

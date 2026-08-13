@@ -22,7 +22,13 @@ const exercise = (id: number, name: string): Exercise => ({
   notes: null,
 })
 
-const LIBRARY = [exercise(12, 'Back Squat'), exercise(3, 'Overhead Press')]
+const EXERCISES = [exercise(12, 'Back Squat'), exercise(3, 'Overhead Press')]
+const CUSTOM_WIDGETS = [
+  { id: 7, name: 'Weekly tonnage' },
+  { id: 9, name: 'RPE drift' },
+]
+/** Both name-keyed sources the file form resolves against. */
+const LIBRARY = { exercises: EXERCISES, customWidgets: CUSTOM_WIDGETS }
 
 describe('normalizeWidgets', () => {
   it('keeps known widget types and drops unknown ones', () => {
@@ -126,7 +132,7 @@ describe('portable exercise references', () => {
 
   it('resolves names against the local library, not the exporter ids', () => {
     // The file says "Back Squat"; locally that lift is id 7, not 12.
-    const local = [exercise(7, 'Back Squat')]
+    const local = { exercises: [exercise(7, 'Back Squat')], customWidgets: [] }
     const result = fromFileWidgets(
       [{ id: 'a', type: 'exercise_progress', options: { exercise_name: 'Back Squat' } }],
       local,
@@ -166,6 +172,40 @@ describe('portable exercise references', () => {
     const file = buildDashboardFile(widgets, LIBRARY)
     expect(file.widgets[0].options.exercise_name).toBe('Overhead Press')
     expect(fromFileWidgets(file.widgets, LIBRARY).widgets).toEqual(widgets)
+  })
+
+  describe('custom widget references', () => {
+    const placed: WidgetInstance[] = [{ id: 'a', type: 'custom', options: { widget_id: 7 } }]
+
+    it('exports a custom placement by the widget name', () => {
+      const [entry] = toFileWidgets(placed, LIBRARY)
+      expect(entry.options).toEqual({ widget_name: 'Weekly tonnage' })
+      expect(entry.options.widget_id).toBeUndefined()
+    })
+
+    it('resolves the name against this database, not the exporter ids', () => {
+      const local = { exercises: [], customWidgets: [{ id: 21, name: 'Weekly tonnage' }] }
+      const file = buildDashboardFile(placed, LIBRARY)
+      expect(fromFileWidgets(file.widgets, local).widgets[0].options).toEqual({ widget_id: 21 })
+    })
+
+    it('reports a widget this database does not have, keeping the placement', () => {
+      const result = fromFileWidgets(
+        [{ id: 'a', type: 'custom', options: { widget_name: 'Bar speed' } }],
+        LIBRARY,
+      )
+      expect(result.unresolved).toEqual(['Bar speed'])
+      expect(result.widgets[0].options).toEqual({ widget_id: null })
+    })
+
+    it('round-trips alongside exercise references', () => {
+      const mixed: WidgetInstance[] = [
+        ...placed,
+        { id: 'b', type: 'exercise_progress', options: { exercise_id: 12 } },
+      ]
+      const file = buildDashboardFile(mixed, LIBRARY)
+      expect(fromFileWidgets(file.widgets, LIBRARY).widgets).toEqual(mixed)
+    })
   })
 })
 
