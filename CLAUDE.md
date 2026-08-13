@@ -76,6 +76,21 @@ time on a new machine, browsers need `pnpm exec playwright install chromium`
 (use plain `install`, not `--with-deps`, in sandboxed environments without
 root/sudo).
 
+### Orca worktrees (`orca.yaml` + `scripts/orca-dev.sh`)
+
+If this checkout is an Orca worktree, **the dev servers are probably already
+running and not on the documented ports.** `orca.yaml` gives each new worktree
+a `backend` and a `frontend` tab, both running `scripts/orca-dev.sh`, which
+allocates the first free port at or above 8765/5173 and a per-worktree SQLite
+file, then records them in `$(git rev-parse --git-dir)/orca/dev.env`. Run
+`./scripts/orca-dev.sh env` before assuming `:5173` or `~/.openrep/openrep.db`,
+and start a second server only after checking that tab.
+
+Per-worktree allocation is the point, not incidental: sibling worktrees are
+different branches, so one shared database would be migrated by whichever
+branch booted last. E2E is unaffected — `playwright.config.ts` still boots its
+own servers against `e2e/.tmp/e2e.db`.
+
 ## Architecture notes
 
 **Migrations run automatically.** `openrep/main.py`'s FastAPI `lifespan` calls

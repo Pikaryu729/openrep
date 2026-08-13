@@ -84,6 +84,24 @@ database defaults to `~/.openrep/openrep.db` (override with
 > `frontend/.env` is gitignored. If yours still sets `VITE_API_BASE_URL` from
 > an older checkout, clear it — it overrides the same-origin `/api` default.
 
+### Orca workspaces
+
+`orca.yaml` is checked in, so opening this repo in [Orca](https://orca.computer)
+gives every new worktree a backend tab and a frontend tab that come up on their
+own. `scripts/orca-dev.sh` backs all of it, and can be run by hand outside Orca:
+
+```bash
+./scripts/orca-dev.sh setup       # allocate this worktree's ports + database
+./scripts/orca-dev.sh backend     # uvicorn, with reload
+./scripts/orca-dev.sh frontend    # vite, and opens Orca's browser on the UI
+```
+
+Because several worktrees run at once, none of them may assume the defaults:
+each gets the first free port at or above 8765/5173 — skipping the pair `e2e`
+reserves — plus its own SQLite file, recorded in that worktree's git directory
+(`./scripts/orca-dev.sh env` prints them). Delete
+`$(git rev-parse --git-dir)/orca/dev.env` to reallocate.
+
 ### Tests
 
 ```bash

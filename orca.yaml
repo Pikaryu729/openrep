@@ -1,0 +1,21 @@
+# Orca workspace configuration, shared by everyone who opens this repo in Orca.
+# `scripts.setup` runs once when a worktree is created; `defaultTabs` are the
+# terminal tabs a new worktree opens with. Both are checked in on purpose — a
+# fresh worktree should come up with its own servers without local setup.
+#
+# All of them call scripts/orca-dev.sh, which allocates a port pair and a
+# SQLite file per worktree so several checkouts can run at once.
+
+scripts:
+  setup: ./scripts/orca-dev.sh setup
+
+defaultTabs:
+  # Orca puts the agent in the first tab and drops that tab's command when it
+  # does, so this one deliberately has none.
+  - title: agent
+  - title: backend
+    color: "#22c55e"
+    command: ./scripts/orca-dev.sh backend
+  - title: frontend
+    color: "#38bdf8"
+    command: ./scripts/orca-dev.sh frontend
