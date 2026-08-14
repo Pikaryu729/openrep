@@ -7,13 +7,14 @@ import {
   applyTheme,
   buildCssVars,
   contrastColorFor,
+  initTheme,
   loadTheme,
   resolveColors,
   resolveGlobal,
   saveTheme,
   type ThemeOverrides,
 } from './theme'
-import { BASE_LIGHT } from './themeTokens'
+import { BASE_DARK, BASE_LIGHT } from './themeTokens'
 
 const overridesWith = (light: Record<string, string>): ThemeOverrides => ({
   ...EMPTY_OVERRIDES,
@@ -187,6 +188,47 @@ describe('applyTheme', () => {
     const style = document.documentElement.style
     expect(style.getPropertyValue('--accent')).toBe('#0369a1')
     expect(style.getPropertyValue('--background')).toBe('#010203')
+  })
+})
+
+describe('initTheme', () => {
+  it('recomputes stale persisted vars from the current bases and re-saves', () => {
+    // A payload saved by an older build: settings are valid v2, but the
+    // precomputed vars carry a value the codebase has since changed.
+    localStorage.setItem(
+      THEME_STORAGE_KEY,
+      JSON.stringify({
+        v: THEME_SCHEMA_VERSION,
+        mode: 'dark',
+        preset: 'graphite',
+        overrides: { ...EMPTY_OVERRIDES, colors: { light: { primary: '#123456' }, dark: {} } },
+        vars: { light: { '--accent': '#123456' }, dark: { '--accent': '#a1a1aa' } },
+      }),
+    )
+    // Simulate the boot script having replayed the stale var inline.
+    document.documentElement.style.setProperty('--accent', '#a1a1aa')
+
+    initTheme()
+
+    const stored = JSON.parse(localStorage.getItem(THEME_STORAGE_KEY)!)
+    expect(stored.vars.dark['--accent']).toBe(BASE_DARK.primary)
+    expect(stored.vars.dark['--accent']).not.toBe('#a1a1aa')
+    // Settings survive the refresh untouched; the recompute still honors them.
+    expect(stored.mode).toBe('dark')
+    expect(stored.preset).toBe('graphite')
+    expect(stored.overrides.colors.light.primary).toBe('#123456')
+    expect(stored.vars.light['--accent']).toBe('#123456')
+    // The live document was corrected too, not just the stored payload.
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe(BASE_DARK.primary)
+    expect(document.documentElement.dataset.mode).toBe('dark')
+  })
+
+  it('applies the default theme without persisting it for first-time users', () => {
+    initTheme()
+    expect(document.documentElement.dataset.mode).toBe('light')
+    expect(document.documentElement.dataset.theme).toBe(DEFAULT_THEME.preset)
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe(BASE_LIGHT.primary)
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBeNull()
   })
 })
 

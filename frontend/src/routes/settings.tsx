@@ -2,24 +2,20 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { useRef, useState } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { PresetPicker } from '@/components/PresetPicker'
+import { SegmentedControl } from '@/components/SegmentedControl'
+import { MODES, UNIT_OPTIONS } from '@/components/segmentedOptions'
 import { ThemeEditor } from '@/components/ThemeEditor'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { api, type BackupDocument, type BackupImportSummary } from '@/lib/api'
-import { cn } from '@/lib/utils'
-import { useTheme, type ThemeMode } from '@/lib/theme'
-import { THEME_PRESET_DEFINITIONS, THEME_PRESETS } from '@/lib/themePresets'
-import { saveUnits, useUnits, type UnitSystem } from '@/lib/units'
+import { saveOnboardingFlag } from '@/lib/onboarding'
+import { useTheme } from '@/lib/theme'
+import { saveUnits, useUnits } from '@/lib/units'
 
 export const Route = createFileRoute('/settings')({
   component: SettingsPage,
 })
-
-const MODES: { value: ThemeMode; label: string }[] = [
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-  { value: 'system', label: 'System' },
-]
 
 export function SettingsPage() {
   return (
@@ -29,8 +25,32 @@ export function SettingsPage() {
         <AppearanceCard />
         <UnitsCard />
         <BackupCard />
+        <OnboardingCard />
       </div>
     </section>
+  )
+}
+
+function OnboardingCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Onboarding</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <SettingsRow label="First-run setup">
+          {/* The root layout's gate subscribes to the flag, so writing
+              'replay' swaps the wizard in immediately — no navigation. */}
+          <Button variant="outline" onClick={() => saveOnboardingFlag('replay')}>
+            Replay onboarding
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            Walk through units, theme and the starter exercise library again. Nothing is
+            duplicated or deleted.
+          </span>
+        </SettingsRow>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -55,55 +75,20 @@ function AppearanceCard() {
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <SettingsRow label="Mode">
-          <div
-            className="inline-flex overflow-hidden rounded-md border bg-card"
-            role="group"
+          <SegmentedControl
+            options={MODES}
+            value={theme.mode}
+            onChange={(mode) => update({ mode })}
             aria-label="Color mode"
-          >
-            {MODES.map((mode) => (
-              <button
-                key={mode.value}
-                type="button"
-                data-testid={`mode-${mode.value}`}
-                aria-pressed={theme.mode === mode.value}
-                onClick={() => update({ mode: mode.value })}
-                className={cn(
-                  'px-4 py-2 text-sm font-medium transition-colors not-first:border-l',
-                  theme.mode === mode.value
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                )}
-              >
-                {mode.label}
-              </button>
-            ))}
-          </div>
+            testidPrefix="mode-"
+          />
         </SettingsRow>
         <SettingsRow label="Theme">
-          <div className="flex flex-wrap gap-2">
-            {THEME_PRESETS.map((preset) => {
-              const selected = theme.preset === preset
-              return (
-                <button
-                  key={preset}
-                  type="button"
-                  data-testid={`preset-${preset}`}
-                  aria-pressed={selected}
-                  onClick={() => update({ preset })}
-                  className={cn(
-                    'inline-flex items-center gap-2 rounded-md border bg-card px-3 py-1.5 text-sm transition-colors',
-                    selected ? 'border-primary ring-[3px] ring-primary/25' : 'hover:bg-muted',
-                  )}
-                >
-                  <span
-                    className="size-3.5 rounded-full"
-                    style={{ background: THEME_PRESET_DEFINITIONS[preset].swatch }}
-                  />
-                  {THEME_PRESET_DEFINITIONS[preset].label}
-                </button>
-              )
-            })}
-          </div>
+          <PresetPicker
+            value={theme.preset}
+            onChange={(preset) => update({ preset })}
+            testidPrefix="preset-"
+          />
         </SettingsRow>
         <SettingsRow label="Customize">
           <Button
@@ -124,11 +109,6 @@ function AppearanceCard() {
   )
 }
 
-const UNIT_OPTIONS: { value: UnitSystem; label: string }[] = [
-  { value: 'metric', label: 'Metric (kg)' },
-  { value: 'imperial', label: 'Imperial (lb)' },
-]
-
 function UnitsCard() {
   const units = useUnits()
 
@@ -139,29 +119,13 @@ function UnitsCard() {
       </CardHeader>
       <CardContent>
         <SettingsRow label="Weight">
-          <div
-            className="inline-flex overflow-hidden rounded-md border bg-card"
-            role="group"
+          <SegmentedControl
+            options={UNIT_OPTIONS}
+            value={units}
+            onChange={saveUnits}
             aria-label="Weight units"
-          >
-            {UNIT_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                data-testid={`unit-${option.value}`}
-                aria-pressed={units === option.value}
-                onClick={() => saveUnits(option.value)}
-                className={cn(
-                  'px-4 py-2 text-sm font-medium transition-colors not-first:border-l',
-                  units === option.value
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                )}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+            testidPrefix="unit-"
+          />
         </SettingsRow>
         <p className="mt-3 text-xs text-muted-foreground">
           Weights are always stored in kilograms; this only changes how they are entered and
