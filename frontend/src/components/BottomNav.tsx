@@ -2,7 +2,8 @@ import { Link } from '@tanstack/react-router'
 import { NAV_ITEMS } from '@/components/AppSidebar'
 import { cn } from '@/lib/utils'
 
-const activeLinkClass = 'data-[status=active]:text-sidebar-primary'
+const activeLinkClass =
+  'relative data-[status=active]:text-sidebar-primary data-[status=active]:after:absolute data-[status=active]:after:bottom-1 data-[status=active]:after:size-1 data-[status=active]:after:rounded-full data-[status=active]:after:bg-sidebar-primary'
 
 /** Fixed bottom tab bar shown in place of the sidebar/header on mobile
  * (<768px, see `useIsMobile` in `routes/__root.tsx`). Renders the same
@@ -19,6 +20,7 @@ export function BottomNav() {
           key={item.to}
           to={item.to}
           activeOptions={{ exact: 'exact' in item && item.exact }}
+          activeProps={{ 'aria-current': 'page' }}
           className={cn('flex flex-1 flex-col items-center gap-1 py-2 text-xs', activeLinkClass)}
         >
           <item.icon className="size-5" />

@@ -60,6 +60,12 @@ export function ExercisesPage() {
     },
   })
 
+  const handleEdit = (exercise: Exercise) => setEditing(exercise)
+  const handleDelete = (exercise: Exercise) => {
+    deleteExercise.reset()
+    setDeleting(exercise)
+  }
+
   return (
     <section>
       <h1 className="mb-6 text-2xl font-semibold tracking-tight">Exercises</h1>
@@ -159,7 +165,7 @@ export function ExercisesPage() {
                         variant="ghost"
                         size="icon-lg"
                         aria-label="Edit"
-                        onClick={() => setEditing(exercise)}
+                        onClick={() => handleEdit(exercise)}
                       >
                         <PencilIcon />
                       </Button>
@@ -167,10 +173,7 @@ export function ExercisesPage() {
                         variant="ghost"
                         size="icon-lg"
                         aria-label="Delete"
-                        onClick={() => {
-                          deleteExercise.reset()
-                          setDeleting(exercise)
-                        }}
+                        onClick={() => handleDelete(exercise)}
                       >
                         <Trash2Icon />
                       </Button>
@@ -210,7 +213,7 @@ export function ExercisesPage() {
                             variant="ghost"
                             size="icon-sm"
                             aria-label="Edit"
-                            onClick={() => setEditing(exercise)}
+                            onClick={() => handleEdit(exercise)}
                           >
                             <PencilIcon />
                           </Button>
@@ -218,10 +221,7 @@ export function ExercisesPage() {
                             variant="ghost"
                             size="icon-sm"
                             aria-label="Delete"
-                            onClick={() => {
-                              deleteExercise.reset()
-                              setDeleting(exercise)
-                            }}
+                            onClick={() => handleDelete(exercise)}
                           >
                             <Trash2Icon />
                           </Button>

@@ -24,31 +24,24 @@ function RootLayout() {
     return <OnboardingWizard onDone={onboarding.onDone} />
   }
 
-  // Mobile: no sidebar/header at all — a fixed bottom tab bar (BottomNav)
-  // replaces them, since the off-canvas Sheet the Sidebar collapses into on
-  // phones is hard to reach one-handed via its top-left hamburger.
-  if (isMobile) {
-    return (
-      <main className="min-h-svh bg-background">
-        <div className="mx-auto max-w-4xl p-4 pb-24">
-          <Outlet />
-        </div>
-        <BottomNav />
-      </main>
-    )
-  }
-
   return (
     <SidebarProvider>
-      <AppSidebar />
+      <AppSidebar hidden={isMobile} />
       <SidebarInset>
-        <header className="flex h-14 items-center gap-2 border-b px-4">
-          <SidebarTrigger />
+        <header
+          className={isMobile ? 'hidden' : 'flex h-14 items-center gap-2 border-b px-4'}
+        >
+          {!isMobile && <SidebarTrigger />}
         </header>
-        <main className="max-w-4xl p-4 md:p-8">
+        <main
+          className={
+            isMobile ? 'mx-auto max-w-4xl p-4 pb-24' : 'max-w-4xl p-4 md:p-8'
+          }
+        >
           <Outlet />
         </main>
       </SidebarInset>
+      {isMobile && <BottomNav />}
     </SidebarProvider>
   )
 }

@@ -27,17 +27,24 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
     Link: ({
       to,
       activeOptions,
+      activeProps,
       children,
       className,
     }: {
       to: string
       activeOptions?: { exact?: boolean }
+      activeProps?: Record<string, string>
       children?: ReactNode
       className?: string
     }) => {
       const isActive = activeOptions?.exact ? currentPath === to : currentPath.startsWith(to)
       return (
-        <a href={to} className={className} data-status={isActive ? 'active' : undefined}>
+        <a
+          href={to}
+          className={className}
+          data-status={isActive ? 'active' : undefined}
+          {...(isActive ? activeProps : {})}
+        >
           {children}
         </a>
       )
@@ -80,6 +87,8 @@ describe('BottomNav', () => {
     expect(screen.getByRole('link', { name: 'Workouts' }).getAttribute('data-status')).toBe(
       'active',
     )
+    expect(screen.getByRole('link', { name: 'Workouts' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current')
     expect(screen.getByRole('link', { name: 'Dashboard' }).getAttribute('data-status')).toBeNull()
     expect(screen.getByRole('link', { name: 'Exercises' }).getAttribute('data-status')).toBeNull()
   })

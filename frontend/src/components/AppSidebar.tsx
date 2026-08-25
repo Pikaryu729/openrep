@@ -41,7 +41,9 @@ export const NAV_ITEMS = [
 const activeLinkClass =
   'data-[status=active]:bg-sidebar-accent data-[status=active]:font-medium data-[status=active]:text-sidebar-primary'
 
-export function AppSidebar() {
+export function AppSidebar({ hidden = false }: { hidden?: boolean }) {
+  if (hidden) return null
+
   return (
     <Sidebar>
       <SidebarHeader>

@@ -10,7 +10,7 @@ theming, units, and JSON backup all work and are tested. But "works" and
 ## v0.1 — Release blockers ("Now")
 
 These are the things a first-time user hits in the first ten minutes. Four of
-the original six are now shipped; mobile usability is the active item.
+the original six are now shipped; mobile usability is the active next item.
 
 ### Shipped
 
@@ -34,19 +34,22 @@ the original six are now shipped; mobile usability is the active item.
    dashboard." Known edge cases (flash, race, quota-full) were already fixed
    in review.
 
-### Remaining
+### Active next item
 
-### 5. Mobile usability pass — **next up**
-People log sets *in the gym, on a phone*. The shadcn sidebar collapses to a
-sheet, but page content hasn't been audited: the workout detail page (our
-most-used screen) is a plain desktop `<Table>` with sub-44px row-action
-buttons and no `inputMode` hints on numeric fields, so mobile browsers show a
-full keyboard instead of a number pad. A repo-wide check found responsive
-(`sm:`/`md:`) classes in exactly one route file — everywhere else is
-unaudited.
-- Audit every flow at 390px width; make add-set a thumb-friendly flow.
-- Bigger touch targets for the reorder/edit/delete row actions.
-- `inputMode="decimal"`/`"numeric"` on weight/reps/RPE inputs.
+### 5. Mobile usability pass — **active**
+The first mobile-first pass is shipped for workout logging and the exercise
+list. `useIsMobile()` swaps the workout and exercise desktop tables for stacked
+cards below the shared 768px breakpoint; mutation handlers stay shared between
+those render branches. Numeric weight/reps/RPE inputs carry decimal or numeric
+`inputMode` hints, row actions use the existing icon-sized targets, add forms
+reflow below `md`, and `SettingsRow` wraps long copy. The mobile shell also uses
+a fixed bottom nav and adds back links to both detail-page success paths.
+
+The broader audit remains active:
+- Audit every flow at 390px width and make each logging flow thumb-friendly.
+- Check touch targets and numeric keypad hints across any remaining flows.
+
+### Remaining
 
 ### 6. Data-safety guarantees — partially done
 Local-first means we are the user's only backup. The manual side exists —
@@ -103,9 +106,10 @@ Declaring these keeps scope honest — revisit only with strong evidence:
 
 v0.1 is ordered around the first-session funnel: install (1) → have something
 to log against (3, 4) → log from a phone (5) → see why it was worth it (2) →
-trust us with the data (6). Items 1–4 are done, so (5) is the next unbroken
-link in that chain — mobile logging is the highest-frequency interaction in
-the app and currently has zero mitigation, versus (6)'s tail-risk data-loss
-scenarios which already have a manual (if unprompted) safety net via export.
-v0.2 is ordered by retention impact per unit of effort, with templates first
-because logging friction is the #1 churn driver in this category.
+trust us with the data (6). Items 1–4 and the first mobile logging pass are
+shipped, so (5) remains the active next item until the broader phone audit is
+complete. Mobile logging is the highest-frequency interaction in the app,
+while (6)'s tail-risk data-loss scenarios already have a manual (if
+unprompted) safety net via export. v0.2 is ordered by retention impact per
+unit of effort, with templates first because logging friction is the #1 churn
+driver in this category.
