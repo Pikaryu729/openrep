@@ -56,7 +56,7 @@ function OnboardingCard() {
 
 function SettingsRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       <span className="min-w-32 text-sm font-medium text-muted-foreground">{label}</span>
       {children}
     </div>

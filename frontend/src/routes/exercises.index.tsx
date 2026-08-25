@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, createFileRoute } from '@tanstack/react-router'
+import { PencilIcon, Trash2Icon } from 'lucide-react'
 import { useState } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EmptyState } from '@/components/EmptyState'
@@ -10,6 +11,7 @@ import { DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { ApiError, api, type Exercise } from '@/lib/api'
 
 export const Route = createFileRoute('/exercises/')({
@@ -26,6 +28,7 @@ function conflictMessage(error: unknown): string | null {
 
 export function ExercisesPage() {
   const queryClient = useQueryClient()
+  const isMobile = useIsMobile()
   const [name, setName] = useState('')
   const [category, setCategory] = useState('')
   const [notes, setNotes] = useState('')
@@ -78,7 +81,7 @@ export function ExercisesPage() {
             }}
           >
             <div className="flex flex-wrap items-end gap-3">
-              <div className="grid gap-1.5">
+              <div className="grid w-full gap-1.5 md:w-auto">
                 <Label htmlFor="exercise-name">Name</Label>
                 <Input
                   id="exercise-name"
@@ -87,7 +90,7 @@ export function ExercisesPage() {
                   placeholder="Exercise name"
                 />
               </div>
-              <div className="grid gap-1.5">
+              <div className="grid w-full gap-1.5 md:w-auto">
                 <Label htmlFor="exercise-category">Category</Label>
                 <Input
                   id="exercise-category"
@@ -96,7 +99,7 @@ export function ExercisesPage() {
                   placeholder="Category (optional)"
                 />
               </div>
-              <div className="grid gap-1.5">
+              <div className="grid w-full gap-1.5 md:w-auto">
                 <Label htmlFor="exercise-notes">Notes</Label>
                 <Input
                   id="exercise-notes"
@@ -105,7 +108,7 @@ export function ExercisesPage() {
                   placeholder="Notes (optional)"
                 />
               </div>
-              <Button type="submit" disabled={createExercise.isPending}>
+              <Button type="submit" className="w-full md:w-auto" disabled={createExercise.isPending}>
                 Add
               </Button>
             </div>
@@ -129,52 +132,107 @@ export function ExercisesPage() {
             hint="Add your first exercise above to start logging sets."
           />
         ) : exercises ? (
-          <div className="rounded-lg border bg-card shadow-xs">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Notes</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {exercises.map((exercise) => (
-                  <TableRow key={exercise.id}>
-                    <TableCell>
+          isMobile ? (
+            <div className="flex flex-col gap-3">
+              {exercises.map((exercise) => (
+                <Card key={exercise.id}>
+                  <CardContent className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
                       <Link
                         to="/exercises/$exerciseId"
                         params={{ exerciseId: String(exercise.id) }}
-                        className="font-medium underline-offset-4 hover:underline"
+                        className="min-w-0 truncate font-medium underline-offset-4 hover:underline"
                       >
                         {exercise.name}
                       </Link>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{exercise.category}</TableCell>
-                    <TableCell className="text-muted-foreground">{exercise.notes}</TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => setEditing(exercise)}>
-                          Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            deleteExercise.reset()
-                            setDeleting(exercise)
-                          }}
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    </TableCell>
+                      {exercise.category && (
+                        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                          {exercise.category}
+                        </span>
+                      )}
+                    </div>
+                    {exercise.notes && (
+                      <p className="text-sm text-muted-foreground">{exercise.notes}</p>
+                    )}
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon-lg"
+                        aria-label="Edit"
+                        onClick={() => setEditing(exercise)}
+                      >
+                        <PencilIcon />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-lg"
+                        aria-label="Delete"
+                        onClick={() => {
+                          deleteExercise.reset()
+                          setDeleting(exercise)
+                        }}
+                      >
+                        <Trash2Icon />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border bg-card shadow-xs">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Notes</TableHead>
+                    <TableHead />
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {exercises.map((exercise) => (
+                    <TableRow key={exercise.id}>
+                      <TableCell>
+                        <Link
+                          to="/exercises/$exerciseId"
+                          params={{ exerciseId: String(exercise.id) }}
+                          className="font-medium underline-offset-4 hover:underline"
+                        >
+                          {exercise.name}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{exercise.category}</TableCell>
+                      <TableCell className="text-muted-foreground">{exercise.notes}</TableCell>
+                      <TableCell>
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="Edit"
+                            onClick={() => setEditing(exercise)}
+                          >
+                            <PencilIcon />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="Delete"
+                            onClick={() => {
+                              deleteExercise.reset()
+                              setDeleting(exercise)
+                            }}
+                          >
+                            <Trash2Icon />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )
         ) : null}
       </div>
 

@@ -1,9 +1,30 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactElement } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, api } from '../lib/api'
 import { ExercisesPage } from './exercises.index'
+
+// useIsMobile (src/hooks/use-mobile.ts) determines mobile-ness from
+// window.innerWidth, not from the matchMedia MediaQueryList's `matches`
+// field — matchMedia is only used for its change-event wiring. So a stub
+// needs both: matchMedia so the hook doesn't crash on an API jsdom lacks,
+// and innerWidth so the hook's own comparison actually resolves to mobile.
+function stubViewport(isMobile: boolean) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockReturnValue({
+      matches: isMobile,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }),
+  )
+  Object.defineProperty(window, 'innerWidth', {
+    writable: true,
+    configurable: true,
+    value: isMobile ? 375 : 1024,
+  })
+}
 
 vi.mock('../lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/api')>()
@@ -39,8 +60,14 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
   }
 })
 
+beforeEach(() => {
+  // matches: false keeps every existing test on the desktop/table path.
+  stubViewport(false)
+})
+
 afterEach(() => {
   vi.resetAllMocks()
+  vi.unstubAllGlobals()
 })
 
 function renderWithClient(ui: ReactElement) {
@@ -118,5 +145,19 @@ describe('ExercisesPage', () => {
     expect(
       await screen.findByText('An exercise with this name already exists.'),
     ).toBeInTheDocument()
+  })
+
+  it('renders a stacked card list instead of a table under the mobile breakpoint', async () => {
+    stubViewport(true)
+    vi.mocked(api.exercises.list).mockResolvedValue([
+      { id: 1, name: 'Deadlift', category: 'back', notes: 'Conventional stance' },
+    ])
+
+    renderWithClient(<ExercisesPage />)
+
+    expect(await screen.findByText('Deadlift')).toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(screen.getByText('back')).toBeInTheDocument()
+    expect(screen.getByText('Conventional stance')).toBeInTheDocument()
   })
 })

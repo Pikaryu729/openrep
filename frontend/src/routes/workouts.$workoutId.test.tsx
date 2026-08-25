@@ -1,9 +1,30 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactElement } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../lib/api'
 import { WorkoutDetailPage } from './workouts.$workoutId'
+
+// useIsMobile (src/hooks/use-mobile.ts) determines mobile-ness from
+// window.innerWidth, not from the matchMedia MediaQueryList's `matches`
+// field — matchMedia is only used for its change-event wiring. So a stub
+// needs both: matchMedia so the hook doesn't crash on an API jsdom lacks,
+// and innerWidth so the hook's own comparison actually resolves to mobile.
+function stubViewport(isMobile: boolean) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockReturnValue({
+      matches: isMobile,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }),
+  )
+  Object.defineProperty(window, 'innerWidth', {
+    writable: true,
+    configurable: true,
+    value: isMobile ? 375 : 1024,
+  })
+}
 
 vi.mock('../lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/api')>()
@@ -41,8 +62,14 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
   }
 })
 
+beforeEach(() => {
+  // matches: false keeps every existing test on the desktop/table path.
+  stubViewport(false)
+})
+
 afterEach(() => {
   vi.resetAllMocks()
+  vi.unstubAllGlobals()
   localStorage.clear()
 })
 
@@ -224,5 +251,37 @@ describe('WorkoutDetailPage', () => {
     const lastRow = within(table).getByText('Deadlift').closest('tr')!
     expect(within(firstRow).getByRole('button', { name: 'Move set up' })).toBeDisabled()
     expect(within(lastRow).getByRole('button', { name: 'Move set down' })).toBeDisabled()
+  })
+
+  it('renders a stacked card list instead of a table under the mobile breakpoint', async () => {
+    stubViewport(true)
+    mockHappyPath()
+
+    renderWithClient(<WorkoutDetailPage workoutId={7} />)
+
+    // 'Back Squat' also appears as an <option> in the AddSetForm picker
+    // below, so scope to the card's own <span> rendering of the name.
+    expect(await screen.findByText('Back Squat', { selector: 'span' })).toBeInTheDocument()
+    expect(screen.getByText('Deadlift', { selector: 'span' })).toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    // Card view shows "<weight> <unit> × <reps>" instead of separate cells.
+    expect(screen.getByText('140 kg × 3')).toBeInTheDocument()
+    expect(screen.getByText('RPE 8')).toBeInTheDocument()
+  })
+
+  it('deletes a set from the mobile card view', async () => {
+    stubViewport(true)
+    mockHappyPath()
+    vi.mocked(api.sets.delete).mockResolvedValue(undefined)
+
+    renderWithClient(<WorkoutDetailPage workoutId={7} />)
+    await screen.findByText('Back Squat', { selector: 'span' })
+
+    const card = screen.getByText('Back Squat', { selector: 'span' }).closest('[data-slot="card"]')!
+    fireEvent.click(within(card as HTMLElement).getByRole('button', { name: 'Delete' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Delete set?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+    await vi.waitFor(() => expect(api.sets.delete).toHaveBeenCalledWith(10))
   })
 })

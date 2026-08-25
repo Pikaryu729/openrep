@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { WidgetEditor } from '@/components/WidgetEditor'
 import { Skeleton } from '@/components/ui/skeleton'
 import { api, type CustomWidgetInput } from '@/lib/api'
@@ -46,7 +46,12 @@ export function EditWidget() {
 
   return (
     <section>
-      <h1 className="mb-6 font-semibold text-2xl tracking-tight">{widgetQuery.data.name}</h1>
+      <div className="mb-6">
+        <Link to="/widgets" className="text-muted-foreground text-sm">
+          ← Widgets
+        </Link>
+        <h1 className="mt-1 font-semibold text-2xl tracking-tight">{widgetQuery.data.name}</h1>
+      </div>
       {/* Keyed on the loaded widget so the editor's draft state is seeded from
           it exactly once — without this, navigating between two widgets would
           reuse the first one's draft. */}

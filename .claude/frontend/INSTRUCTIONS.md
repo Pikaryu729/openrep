@@ -14,10 +14,15 @@ adding another UI dependency.
   new-york style). Check the file lands in `src/components/ui/` — if the CLI
   can't resolve the `@/` alias it writes a literal `@/` folder; move the files
   and delete it.
-- The app shell is the shadcn **Sidebar** (`src/components/AppSidebar.tsx` +
-  `SidebarProvider`/`SidebarInset` in `routes/__root.tsx`). Nav changes go in
-  `AppSidebar`'s `NAV_ITEMS`; the "Recent workouts" group is a `Collapsible`
-  fed by the shared `['workouts']` query.
+- The app shell is the shadcn **Sidebar** on desktop
+  (`src/components/AppSidebar.tsx` + `SidebarProvider`/`SidebarInset` in
+  `routes/__root.tsx`) and a fixed bottom tab bar on mobile
+  (`src/components/BottomNav.tsx`), branched in `RootLayout` on the same
+  `useIsMobile()` (768px) the `Sidebar` primitive itself uses. `NAV_ITEMS`,
+  exported from `AppSidebar.tsx`, is the single source of nav items and feeds
+  both surfaces — add a nav entry there, not in `BottomNav.tsx`. The "Recent
+  workouts" group (sidebar-only) is a `Collapsible` fed by the shared
+  `['workouts']` query.
 - App-level components in `frontend/src/components/` (`Modal`, `ConfirmDialog`,
   `EmptyState`) wrap the shadcn primitives with our conventions. Route through
   them for common cases (all destructive actions go through `ConfirmDialog`)

@@ -1,5 +1,7 @@
 # OpenRep Roadmap
 
+_Last reviewed: 2026-08-24._
+
 What stands between the current build and something we'd ask a stranger to
 install. The app today is a solid CRUD tracker: exercises, workouts, sets,
 theming, units, and JSON backup all work and are tested. But "works" and
@@ -7,53 +9,55 @@ theming, units, and JSON backup all work and are tested. But "works" and
 
 ## v0.1 — Release blockers ("Now")
 
-These are the things a first-time user hits in the first ten minutes. Ship
-nothing until all six are done.
+These are the things a first-time user hits in the first ten minutes. Four of
+the original six are now shipped; mobile usability is the active item.
 
-### 1. A real install & run story
-Today the app is `git clone` + `uv run uvicorn` + `pnpm dev` — that's a
-developer setup, not a product. A local-first app lives or dies on this.
-- One command / one artifact to run both server and UI (single FastAPI process
-  serving the built frontend is the cheapest path; a packaged binary via
-  PyInstaller or a Tauri wrapper is the nicer one).
-- Decide the default port story and what "open the app" means (auto-open
-  browser? menu-bar icon?).
-- Versioned releases with a changelog, and `--version` reporting.
+### Shipped
 
-### 2. Surface the analytics we already built
-The backend ships personal records, per-exercise history, and estimated 1RM
-endpoints — **none of which have any UI**. Progress visualization is the whole
-reason someone logs sets instead of using a notebook.
-- Exercise detail view: history chart (weight + e1RM over time), PR badges.
-- Dashboard: volume as a chart rather than a bare table, plus a "recent PRs"
-  panel.
-- This is our core value prop; the table-only dashboard undersells the product.
+1. ✅ **A real install & run story.** `uv tool install openrep` (or `pipx`)
+   installs a single process that serves the API and the built frontend;
+   `openrep --version` and `/api/health` report version; `CHANGELOG.md` has a
+   released `[0.1.0]` entry. (Auto-opening a browser / menu-bar icon was
+   called out as a "nicer, not required" stretch and remains undone, but
+   doesn't block release.)
+2. ✅ **Surface the analytics we already built.** `exercises.$exerciseId.tsx`
+   shows PR stat tiles (heaviest set, best e1RM, best session volume) and an
+   `ExerciseProgressChart`; the dashboard has `volume_chart`,
+   `personal_records`, `exercise_progress`, `category_breakdown`, and
+   `recent_workouts` widgets, with volume + PRs in the default layout.
+3. ✅ **Starter exercise library.** `frontend/src/lib/starterExercises.ts`
+   seeds ~44 curated movements through the onboarding wizard; replay-safe,
+   skippable, and deletable like any other exercise.
+4. ✅ **First-run onboarding & empty-state flow.** `OnboardingWizard`
+   (welcome → units → appearance → exercises → finish) is gated on a genuinely
+   empty database and funnels into "log your first workout" or "explore the
+   dashboard." Known edge cases (flash, race, quota-full) were already fixed
+   in review.
 
-### 3. Starter exercise library
-The app boots completely empty. Nobody wants to type "Bench Press" before
-they can log their first set.
-- Seed a curated library (~50 common barbell/dumbbell/bodyweight movements,
-  categorized) on first run, via the existing import mechanism.
-- Make it skippable and deletable — it's their database.
+### Remaining
 
-### 4. First-run onboarding & empty-state flow
-Empty states exist per page, but there's no thread connecting them. A new user
-should land on a guided path: create/seed exercises → log first workout → see
-first chart. One-time dismissible, no accounts, no tour overlay theatrics.
-
-### 5. Mobile usability pass
+### 5. Mobile usability pass — **next up**
 People log sets *in the gym, on a phone*. The shadcn sidebar collapses to a
-sheet, but the workout detail page (our most-used screen) is a desktop table
-with small touch targets.
+sheet, but page content hasn't been audited: the workout detail page (our
+most-used screen) is a plain desktop `<Table>` with sub-44px row-action
+buttons and no `inputMode` hints on numeric fields, so mobile browsers show a
+full keyboard instead of a number pad. A repo-wide check found responsive
+(`sm:`/`md:`) classes in exactly one route file — everywhere else is
+unaudited.
 - Audit every flow at 390px width; make add-set a thumb-friendly flow.
 - Bigger touch targets for the reorder/edit/delete row actions.
+- `inputMode="decimal"`/`"numeric"` on weight/reps/RPE inputs.
 
-### 6. Data-safety guarantees
-Local-first means we are the user's only backup. Right now one bad migration
-or an accidental "Replace" import loses everything silently.
-- Automatic backup snapshot before every schema migration (server-side, cheap).
-- Automatic rolling backups (e.g., daily, keep last 7) into `~/.openrep/backups/`.
-- "Replace" import writes a safety export first, and says so.
+### 6. Data-safety guarantees — partially done
+Local-first means we are the user's only backup. The manual side exists —
+Settings → Backup has real export/import with merge/replace modes behind a
+`ConfirmDialog` — but the automatic safety nets the roadmap called for are
+still missing:
+- No backup snapshot before `alembic upgrade head` runs (`core/migrate.py`).
+- No automatic rolling backups (e.g., daily, keep last 7) into
+  `~/.openrep/backups/`.
+- "Replace" import still deletes immediately with no auto-export safety copy
+  first — the confirm dialog warns, but doesn't write a recovery file.
 
 ## v0.2 — The retention release ("Next")
 
@@ -99,6 +103,9 @@ Declaring these keeps scope honest — revisit only with strong evidence:
 
 v0.1 is ordered around the first-session funnel: install (1) → have something
 to log against (3, 4) → log from a phone (5) → see why it was worth it (2) →
-trust us with the data (6). v0.2 is ordered by retention impact per unit of
-effort, with templates first because logging friction is the #1 churn driver
-in this category.
+trust us with the data (6). Items 1–4 are done, so (5) is the next unbroken
+link in that chain — mobile logging is the highest-frequency interaction in
+the app and currently has zero mitigation, versus (6)'s tail-risk data-loss
+scenarios which already have a manual (if unprompted) safety net via export.
+v0.2 is ordered by retention impact per unit of effort, with templates first
+because logging friction is the #1 churn driver in this category.
