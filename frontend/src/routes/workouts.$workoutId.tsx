@@ -316,6 +316,10 @@ function SetRow({
       rpe: rpe === '' ? null : Number(rpe),
     })
 
+  const updateError = updateSet.error && (
+    <p className="text-sm text-destructive">{updateSet.error.message}</p>
+  )
+
   const deleteDialog = confirmingDelete && (
     <ConfirmDialog
       title="Delete set?"
@@ -393,6 +397,7 @@ function SetRow({
                 Cancel
               </Button>
             </div>
+            {updateError}
           </CardContent>
         </Card>
       )
@@ -504,6 +509,7 @@ function SetRow({
               Cancel
             </Button>
           </div>
+          {updateError}
         </TableCell>
       </TableRow>
     )

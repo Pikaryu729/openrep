@@ -5,11 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, api } from '../lib/api'
 import { ExercisesPage } from './exercises.index'
 
-// useIsMobile (src/hooks/use-mobile.ts) determines mobile-ness from
-// window.innerWidth, not from the matchMedia MediaQueryList's `matches`
-// field — matchMedia is only used for its change-event wiring. So a stub
-// needs both: matchMedia so the hook doesn't crash on an API jsdom lacks,
-// and innerWidth so the hook's own comparison actually resolves to mobile.
+// useIsMobile (src/hooks/use-mobile.ts) derives mobile-ness from the
+// matchMedia MediaQueryList's `matches` field. The stub also sets innerWidth
+// to keep the viewport representative for code that reads it directly.
 function stubViewport(isMobile: boolean) {
   vi.stubGlobal(
     'matchMedia',

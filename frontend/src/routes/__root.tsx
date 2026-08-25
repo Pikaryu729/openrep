@@ -37,6 +37,15 @@ function RootLayout() {
           className={
             isMobile ? 'mx-auto max-w-4xl p-4 pb-24' : 'max-w-4xl p-4 md:p-8'
           }
+          style={
+            isMobile
+              ? {
+                  paddingTop: 'calc(1rem + env(safe-area-inset-top))',
+                  paddingLeft: 'calc(1rem + env(safe-area-inset-left))',
+                  paddingRight: 'calc(1rem + env(safe-area-inset-right))',
+                }
+              : undefined
+          }
         >
           <Outlet />
         </main>
