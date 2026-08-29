@@ -3,6 +3,7 @@ import { AppSidebar } from '@/components/AppSidebar'
 import { BottomNav } from '@/components/BottomNav'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
+import { UpdatePrompt } from '@/components/UpdatePrompt'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useOnboardingGate } from '@/lib/onboarding'
 
@@ -51,6 +52,7 @@ function RootLayout() {
         </main>
       </SidebarInset>
       {isMobile && <BottomNav />}
+      <UpdatePrompt />
     </SidebarProvider>
   )
 }

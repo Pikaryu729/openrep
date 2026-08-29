@@ -11,7 +11,7 @@
     // reads index.css off disk to check it against the base token maps. It
     // cannot import the stylesheet, because the Tailwind plugin processes
     // `.css?raw` under Vitest and hands back nothing.
-    "types": ["vite/client", "node"],
+    "types": ["vite/client", "node", "vite-plugin-pwa/client", "vite-plugin-pwa/react"],
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
 
@@ -29,5 +29,8 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Service worker global scope conflicts with this config's DOM lib
+  // (different `self` type) — it's typechecked separately via tsconfig.sw.json.
+  "exclude": ["src/sw.ts"]
 }
