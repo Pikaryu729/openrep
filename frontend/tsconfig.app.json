@@ -32,5 +32,6 @@
   "include": ["src"],
   // Service worker global scope conflicts with this config's DOM lib
   // (different `self` type) — it's typechecked separately via tsconfig.sw.json.
-  "exclude": ["src/sw.ts"]
+  // sw.test.ts exercises the worker script, so it lives in that project too.
+  "exclude": ["src/sw.ts", "src/sw.test.ts"]
 }
