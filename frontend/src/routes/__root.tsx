@@ -13,17 +13,28 @@ export const Route = createRootRoute({
 
 function RootLayout() {
   const onboarding = useOnboardingGate()
+
+  return (
+    <>
+      {/* Only on flag-absent boots, while the first-run probe is in flight:
+          render nothing rather than flashing the shell before the wizard
+          swaps in. */}
+      {onboarding.status === 'pending' ? null : onboarding.status === 'wizard' ? (
+        <OnboardingWizard onDone={onboarding.onDone} />
+      ) : (
+        <AppShell />
+      )}
+      {/* Deliberately outside the onboarding gate: this owns the app's single
+          service-worker registration, so gating it behind the wizard left
+          first-run users with no worker registered at all, and no way to
+          surface an update shipped while the wizard was still up. */}
+      <UpdatePrompt />
+    </>
+  )
+}
+
+function AppShell() {
   const isMobile = useIsMobile()
-
-  // Only on flag-absent boots, while the first-run probe is in flight:
-  // render nothing rather than flashing the shell before the wizard swaps in.
-  if (onboarding.status === 'pending') {
-    return null
-  }
-
-  if (onboarding.status === 'wizard') {
-    return <OnboardingWizard onDone={onboarding.onDone} />
-  }
 
   return (
     <SidebarProvider>
@@ -52,7 +63,6 @@ function RootLayout() {
         </main>
       </SidebarInset>
       {isMobile && <BottomNav />}
-      <UpdatePrompt />
     </SidebarProvider>
   )
 }

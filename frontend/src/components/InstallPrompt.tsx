@@ -1,14 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useSyncExternalStore } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-
-// `beforeinstallprompt` has no official TS DOM type (it's Chromium-only, not
-// part of any web standard) — declare the shape we actually use rather than
-// pulling in a dependency for it.
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>
-}
+import {
+  getInstallCapture,
+  promptInstall,
+  subscribeToInstallCapture,
+} from '@/lib/installPrompt'
 
 function isStandalone(): boolean {
   const displayModeStandalone = window.matchMedia('(display-mode: standalone)').matches
@@ -19,12 +16,14 @@ function isStandalone(): boolean {
 }
 
 function isIOS(): boolean {
-  // Standard iOS-detection idiom: the MSStream check excludes old IE Mobile
-  // false positives (IE Mobile's UA also matches the iPad/iPhone/iPod regex).
-  return (
-    /iPad|iPhone|iPod/.test(navigator.userAgent) &&
-    !(window as unknown as { MSStream?: unknown }).MSStream
-  )
+  // The MSStream check excludes old IE Mobile false positives (its UA also
+  // matches the iPad/iPhone/iPod regex).
+  if ((window as unknown as { MSStream?: unknown }).MSStream) return false
+  if (/iPad|iPhone|iPod/.test(navigator.userAgent)) return true
+  // iPadOS 13+ requests desktop sites by default and reports a Mac UA, so the
+  // regex above misses every modern iPad. Touch points are what separate the
+  // two: a real Mac reports 0, an iPad reports 5.
+  return /Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1
 }
 
 export type InstallState =
@@ -39,38 +38,16 @@ export type InstallState =
  * neither (e.g. desktop Firefox — render nothing rather than a stale button
  * with no handler). */
 export function useInstallPrompt(): InstallState {
-  const [installed, setInstalled] = useState(isStandalone)
-  const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null)
+  // The `beforeinstallprompt` event is captured at the app shell, not here:
+  // it fires early and only once, so a listener owned by this card would miss
+  // it whenever the user was on any other route. See `lib/installPrompt.ts`.
+  const { deferredEvent, installed } = useSyncExternalStore(
+    subscribeToInstallCapture,
+    getInstallCapture,
+  )
 
-  useEffect(() => {
-    const onBeforeInstallPrompt = (event: Event) => {
-      // Chrome only offers the prompt later, on demand, if this default is
-      // suppressed here.
-      event.preventDefault()
-      setInstallEvent(event as BeforeInstallPromptEvent)
-    }
-    const onAppInstalled = () => {
-      setInstalled(true)
-      setInstallEvent(null)
-    }
-    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt)
-    window.addEventListener('appinstalled', onAppInstalled)
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt)
-      window.removeEventListener('appinstalled', onAppInstalled)
-    }
-  }, [])
-
-  const promptInstall = useCallback(async () => {
-    if (!installEvent) return
-    await installEvent.prompt()
-    // The captured event can only be used once — clear it either way so a
-    // dismissed prompt doesn't leave a dead "Install" button behind.
-    setInstallEvent(null)
-  }, [installEvent])
-
-  if (installed) return { status: 'installed' }
-  if (installEvent) return { status: 'installable', promptInstall }
+  if (installed || isStandalone()) return { status: 'installed' }
+  if (deferredEvent) return { status: 'installable', promptInstall }
   if (isIOS()) return { status: 'ios' }
   return { status: 'unavailable' }
 }

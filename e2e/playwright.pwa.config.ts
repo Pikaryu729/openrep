@@ -36,6 +36,21 @@ export default defineConfig({
   use: {
     baseURL: PWA_FRONTEND_ORIGIN,
     trace: 'on-first-retry',
+    // Same rationale as playwright.config.ts, and load-bearing here: browser
+    // contexts start with empty localStorage and the shared throwaway DB is
+    // empty on a fresh checkout, which is exactly the state that sends the app
+    // into the first-run wizard. The wizard renders instead of the shell, so
+    // nothing that registers a service worker ever mounts and every
+    // `navigator.serviceWorker.ready` await in this spec blocks until timeout.
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: PWA_FRONTEND_ORIGIN,
+          localStorage: [{ name: 'openrep.onboarding', value: 'done' }],
+        },
+      ],
+    },
   },
   projects: [
     {
