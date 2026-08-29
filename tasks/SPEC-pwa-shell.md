@@ -12,10 +12,11 @@ Depends on: — (first module in build order)
    cache-then-network reads for `/api/*` — which `generateSW`'s declarative
    config can't express. Starting on `injectManifest` now avoids rewriting
    the whole SW registration path when that module lands.
-2. Icon source: `assets/logo/openrep-icon-1024.png` (dark-on-light) generated
-   via `@vite-pwa/assets-generator`, output copied into `frontend/public/`
-   alongside the existing favicon set — following the existing brand-asset
-   convention (masters in `assets/`, servable subset in `frontend/public/`).
+2. Icon source: the brand master `assets/logo/openrep-icon-1024.png`, rendered
+   by `@vite-pwa/assets-generator` straight into `frontend/public/icons/`.
+   Mechanism lives in `pwa-assets.config.ts` (which also names the exact
+   files the manifest references); see the brand-assets convention in
+   `.claude/frontend/INSTRUCTIONS.md` for the master→servable pipeline.
 3. `registerType: 'prompt'`, not `'autoUpdate'`. A silent SW swap-and-reload
    mid-set (while someone is mid-workout, logging weights) would discard
    in-progress form state. The user must confirm before the new version

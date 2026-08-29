@@ -23,6 +23,19 @@ adding another UI dependency.
   both surfaces — add a nav entry there, not in `BottomNav.tsx`. The "Recent
   workouts" group (sidebar-only) is a `Collapsible` fed by the shared
   `['workouts']` query.
+- The PWA shell owns installability and the app's **single** service-worker
+  registration. `startInstallPromptCapture()` runs once from `main.tsx`
+  (`src/lib/installPrompt.ts`): Chromium fires `beforeinstallprompt` once
+  shortly after load and drops it if nothing is listening, so capture must be
+  app-shell-scoped — `<InstallPrompt>` (Settings) only reads it via
+  `useSyncExternalStore`. Registration lives in `<UpdatePrompt>`
+  (`routes/__root.tsx`, mounted outside the onboarding gate) through
+  `useRegisterSW`; don't add a second registration path. Keep `vite.config.ts`
+  on `strategies: 'injectManifest'` and `registerType: 'prompt'` — never
+  `'autoUpdate'`: activating a waiting worker is the UpdatePrompt Reload
+  button's job, so a mid-workout session is never silently reloaded. `src/sw.ts`
+  is precache-only; `/api` runtime caching and a write queue are the future
+  offline-data module's job (`tasks/SPEC-pwa-shell.md` assumption #5).
 - App-level components in `frontend/src/components/` (`Modal`, `ConfirmDialog`,
   `EmptyState`) wrap the shadcn primitives with our conventions. Route through
   them for common cases (all destructive actions go through `ConfirmDialog`)
@@ -37,8 +50,11 @@ adding another UI dependency.
 
 - `assets/` at the repo root is the brand **source of truth** (logo masters,
   social card, 1024px icons) — it is not served by the app. The servable
-  subset (favicons, apple-touch-icon) is copied into `frontend/public/`; if
-  the masters change, re-copy them.
+  subset in `frontend/public/` is: the favicons + apple-touch-icon (copied by
+  hand; if the masters change, re-copy them) and the PWA icon set
+  (`icons/pwa-192.png`, `icons/pwa-512.png`, `icons/maskable-512.png`), which
+  is *generated*, not copied — run `pnpm generate-pwa-icons`
+  (`pwa-assets.config.ts`) from the `assets/logo/openrep-icon-1024.png` master.
 - In components, don't `<img>` the logo SVGs — use `LogoSymbol` /
   `LogoWordmark` from `@/components/Logo.tsx`, which inline the mono symbol so
   the bar follows `currentColor` and the center plate follows the user's

@@ -50,6 +50,8 @@ Migrations run automatically the next time you start it.
 - Light/dark/system themes, five accent presets, and a custom accent picker
 - Metric or imperial units
 - Full JSON export and import for backup and restore
+- Installable as a PWA (home-screen icon, with an update banner that never
+  reloads you mid-session)
 
 ## Stack
 
@@ -90,6 +92,7 @@ database defaults to `~/.openrep/openrep.db` (override with
 cd backend && uv run pytest        # backend unit tests
 pnpm --dir frontend test           # frontend unit tests
 pnpm --dir e2e test                # end-to-end (boots both servers itself)
+pnpm --dir e2e test:pwa            # PWA install spec (production build + preview)
 ```
 
 ### Building a release artifact

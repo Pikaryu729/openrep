@@ -1,6 +1,6 @@
 # OpenRep Roadmap
 
-_Last reviewed: 2026-08-24._
+_Last reviewed: 2026-08-28._
 
 What stands between the current build and something we'd ask a stranger to
 install. The app today is a solid CRUD tracker: exercises, workouts, sets,
@@ -17,7 +17,10 @@ the original six are now shipped; mobile usability is the active next item.
 1. ✅ **A real install & run story.** `uv tool install openrep` (or `pipx`)
    installs a single process that serves the API and the built frontend;
    `openrep --version` and `/api/health` report version; `CHANGELOG.md` has a
-   released `[0.1.0]` entry. (Auto-opening a browser / menu-bar icon was
+   released `[0.1.0]` entry. A browser-installable PWA shell (web manifest,
+   precaching service worker, install + update prompts) ships too — the
+   offline half is the v0.2 item below. (Auto-opening a browser / menu-bar
+   icon was
    called out as a "nicer, not required" stretch and remains undone, but
    doesn't block release.)
 2. ✅ **Surface the analytics we already built.** `exercises.$exerciseId.tsx`
@@ -74,8 +77,12 @@ What makes week-two users stay, once strangers can install it.
   competitor.
 - **Richer set semantics** — bodyweight (weight optional), warmup vs working
   sets (warmups pollute PR/volume stats today), and failure/AMRAP marking.
-- **PWA / offline** — installable icon on the phone home screen, and resilience
-  to the backend being briefly unreachable. Pairs naturally with local-first.
+- **PWA offline resilience** — the installable half shipped with v0.1:
+  web manifest, service worker, and install/update prompts. What remains is
+  resilience to the backend being briefly unreachable — runtime `/api` caching
+  and a local write queue, as the offline-data module extending `src/sw.ts`
+  (see `tasks/SPEC-pwa-shell.md` assumption #5). Pairs naturally with
+  local-first.
 - **CSV import from Strong / Hevy** — every serious user we want already has
   years of data in one of these. Import is the single biggest adoption lever.
 - **Undo for destructive actions** — we confirm deletes, but confirmation is

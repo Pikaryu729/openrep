@@ -37,7 +37,7 @@ export type InstallState =
  * Chrome), iOS Safari with no install API (show manual instructions), or
  * neither (e.g. desktop Firefox — render nothing rather than a stale button
  * with no handler). */
-export function useInstallPrompt(): InstallState {
+function useInstallPrompt(): InstallState {
   // The `beforeinstallprompt` event is captured at the app shell, not here:
   // it fires early and only once, so a listener owned by this card would miss
   // it whenever the user was on any other route. See `lib/installPrompt.ts`.
