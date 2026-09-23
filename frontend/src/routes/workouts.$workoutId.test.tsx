@@ -267,6 +267,44 @@ describe('WorkoutDetailPage', () => {
     expect(screen.getByText('RPE 8')).toBeInTheDocument()
   })
 
+  it('keeps an in-progress set edit when the viewport crosses the breakpoint', async () => {
+    // A stub whose `change` listeners can be fired, e.g. a tablet rotating.
+    const media = { matches: true, listeners: new Set<() => void>() }
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockReturnValue({
+        get matches() {
+          return media.matches
+        },
+        addEventListener: (_: string, fn: () => void) => media.listeners.add(fn),
+        removeEventListener: (_: string, fn: () => void) => media.listeners.delete(fn),
+      }),
+    )
+    mockHappyPath()
+    vi.mocked(api.sets.update).mockResolvedValue(sets[0])
+
+    renderWithClient(<WorkoutDetailPage workoutId={7} />)
+    const card = (await screen.findByText('Back Squat', { selector: 'span' })).closest(
+      '[data-slot="card"]',
+    )!
+    fireEvent.click(within(card as HTMLElement).getByRole('button', { name: 'Edit' }))
+    fireEvent.change(within(card as HTMLElement).getByLabelText('Weight (kg)'), {
+      target: { value: '105' },
+    })
+
+    act(() => {
+      media.matches = false
+      media.listeners.forEach((fn) => fn())
+    })
+
+    const table = screen.getByRole('table')
+    expect(within(table).getByLabelText('Weight (kg)')).toHaveValue(105)
+    fireEvent.click(within(table).getByRole('button', { name: 'Save' }))
+    await vi.waitFor(() =>
+      expect(api.sets.update).toHaveBeenCalledWith(10, { weight_kg: 105, reps: 5, rpe: 8 }),
+    )
+  })
+
   it('deletes a set from the mobile card view', async () => {
     stubViewport(true)
     mockHappyPath()

@@ -34,6 +34,12 @@ export function WorkoutDetailPage({ workoutId }: { workoutId: number }) {
   const units = useUnits()
   const isMobile = useIsMobile()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  // In-progress set edits live here, not in SetRow: crossing the mobile
+  // breakpoint (e.g. rotating a tablet) swaps the card list for the table,
+  // which remounts every SetRow and would otherwise discard the edit.
+  const [drafts, setDrafts] = useState<Record<number, SetDraft>>({})
+  const setDraft = (id: number, draft: SetDraft | null) =>
+    setDrafts(({ [id]: _, ...rest }) => (draft ? { ...rest, [id]: draft } : rest))
 
   const workoutQuery = useQuery({
     queryKey: ['workouts', workoutId],
@@ -178,6 +184,8 @@ export function WorkoutDetailPage({ workoutId }: { workoutId: number }) {
                     exerciseName={exerciseById.get(setEntry.exercise_id)?.name ?? '—'}
                     prev={index > 0 ? sets[index - 1] : null}
                     next={index < sets.length - 1 ? sets[index + 1] : null}
+                    draft={drafts[setEntry.id] ?? null}
+                    onDraftChange={(draft) => setDraft(setEntry.id, draft)}
                     onChanged={invalidateSets}
                   />
                 ))}
@@ -204,6 +212,8 @@ export function WorkoutDetailPage({ workoutId }: { workoutId: number }) {
                         exerciseName={exerciseById.get(setEntry.exercise_id)?.name ?? '—'}
                         prev={index > 0 ? sets[index - 1] : null}
                         next={index < sets.length - 1 ? sets[index + 1] : null}
+                        draft={drafts[setEntry.id] ?? null}
+                        onDraftChange={(draft) => setDraft(setEntry.id, draft)}
                         onChanged={invalidateSets}
                       />
                     ))}
@@ -252,6 +262,8 @@ export function WorkoutDetailPage({ workoutId }: { workoutId: number }) {
   )
 }
 
+type SetDraft = { weight: string; reps: string; rpe: string }
+
 function SetRow({
   setEntry,
   exerciseName,
@@ -259,6 +271,8 @@ function SetRow({
   prev,
   next,
   isMobile,
+  draft,
+  onDraftChange,
   onChanged,
 }: {
   setEntry: SetEntry
@@ -267,21 +281,24 @@ function SetRow({
   prev: SetEntry | null
   next: SetEntry | null
   isMobile: boolean
+  draft: SetDraft | null
+  onDraftChange: (draft: SetDraft | null) => void
   onChanged: () => void
 }) {
   const units = useUnits()
-  const [editing, setEditing] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [weight, setWeight] = useState(String(kgToDisplay(setEntry.weight_kg, units)))
-  const [reps, setReps] = useState(String(setEntry.reps))
-  const [rpe, setRpe] = useState(setEntry.rpe == null ? '' : String(setEntry.rpe))
+  const editing = draft !== null
+  const { weight = '', reps = '', rpe = '' } = draft ?? {}
+  const setWeight = (value: string) => onDraftChange({ weight: value, reps, rpe })
+  const setReps = (value: string) => onDraftChange({ weight, reps: value, rpe })
+  const setRpe = (value: string) => onDraftChange({ weight, reps, rpe: value })
 
   const updateSet = useMutation({
     mutationFn: (data: { weight_kg?: number; reps?: number; rpe?: number | null }) =>
       api.sets.update(setEntry.id, data),
     onSuccess: () => {
       onChanged()
-      setEditing(false)
+      onDraftChange(null)
     },
   })
 
@@ -302,12 +319,12 @@ function SetRow({
     onSuccess: onChanged,
   })
 
-  const startEditing = () => {
-    setWeight(String(kgToDisplay(setEntry.weight_kg, units)))
-    setReps(String(setEntry.reps))
-    setRpe(setEntry.rpe == null ? '' : String(setEntry.rpe))
-    setEditing(true)
-  }
+  const startEditing = () =>
+    onDraftChange({
+      weight: String(kgToDisplay(setEntry.weight_kg, units)),
+      reps: String(setEntry.reps),
+      rpe: setEntry.rpe == null ? '' : String(setEntry.rpe),
+    })
 
   const saveEdit = () =>
     updateSet.mutate({
@@ -392,7 +409,7 @@ function SetRow({
                 variant="ghost"
                 size="lg"
                 className="flex-1"
-                onClick={() => setEditing(false)}
+                onClick={() => onDraftChange(null)}
               >
                 Cancel
               </Button>
@@ -505,7 +522,7 @@ function SetRow({
             <Button size="sm" disabled={updateSet.isPending} onClick={saveEdit}>
               Save
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
+            <Button variant="ghost" size="sm" onClick={() => onDraftChange(null)}>
               Cancel
             </Button>
           </div>

@@ -6,7 +6,7 @@ const skipWaitingSpy = vi.fn()
 // time, so the service-worker globals must be stubbed before the import.
 beforeAll(async () => {
   const scope = self as unknown as ServiceWorkerGlobalScope
-  scope.__WB_MANIFEST = []
+  scope.__WB_MANIFEST = [{ url: 'index.html', revision: '1' }]
   scope.skipWaiting = skipWaitingSpy
   await import('./sw')
 })

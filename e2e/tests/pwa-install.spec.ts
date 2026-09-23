@@ -47,6 +47,24 @@ test.describe('PWA installability', () => {
     expect(scope).toContain('/')
   })
 
+  test('every navigation gets the same precached shell, except /api', async ({ page }) => {
+    await page.goto('/')
+    await page.evaluate(() => navigator.serviceWorker.ready)
+    // The first load isn't controlled yet; a reload is.
+    await page.reload()
+
+    // Otherwise `/` would serve the cached (old) shell while a deep link
+    // fetched the new one from the server, so which build you ran after an
+    // upgrade depended on the URL you opened.
+    for (const path of ['/', '/workouts/999999', '/settings']) {
+      const response = await page.goto(path)
+      expect(response?.fromServiceWorker(), path).toBe(true)
+    }
+
+    const docs = await page.goto('/api/docs')
+    expect(docs?.fromServiceWorker()).toBe(false)
+  })
+
   test('/api/exercises is not intercepted by the service worker', async ({ page }) => {
     await page.goto('/')
     await page.evaluate(() => navigator.serviceWorker.ready)
