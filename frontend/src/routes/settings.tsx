@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { useRef, useState } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { InstallPrompt } from '@/components/InstallPrompt'
 import { PresetPicker } from '@/components/PresetPicker'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { MODES, UNIT_OPTIONS } from '@/components/segmentedOptions'
@@ -26,6 +27,7 @@ export function SettingsPage() {
         <UnitsCard />
         <BackupCard />
         <OnboardingCard />
+        <InstallPrompt />
       </div>
     </section>
   )
@@ -56,7 +58,7 @@ function OnboardingCard() {
 
 function SettingsRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       <span className="min-w-32 text-sm font-medium text-muted-foreground">{label}</span>
       {children}
     </div>

@@ -30,7 +30,7 @@ import { api } from '@/lib/api'
 
 const RECENT_WORKOUTS_COUNT = 5
 
-const NAV_ITEMS = [
+export const NAV_ITEMS = [
   { title: 'Dashboard', to: '/', exact: true, icon: LayoutDashboardIcon },
   { title: 'Workouts', to: '/workouts', icon: NotebookPenIcon },
   { title: 'Exercises', to: '/exercises', icon: DumbbellIcon },
@@ -41,7 +41,9 @@ const NAV_ITEMS = [
 const activeLinkClass =
   'data-[status=active]:bg-sidebar-accent data-[status=active]:font-medium data-[status=active]:text-sidebar-primary'
 
-export function AppSidebar() {
+export function AppSidebar({ hidden = false }: { hidden?: boolean }) {
+  if (hidden) return null
+
   return (
     <Sidebar>
       <SidebarHeader>

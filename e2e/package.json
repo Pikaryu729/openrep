@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "playwright test"
+    "test": "playwright test",
+    "test:pwa": "playwright test --config=playwright.pwa.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

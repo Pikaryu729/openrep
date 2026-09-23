@@ -130,6 +130,12 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
     <div
       className="flex min-h-svh items-center justify-center bg-background p-4"
       data-testid="onboarding-wizard"
+      style={{
+        paddingTop: 'calc(1rem + env(safe-area-inset-top))',
+        paddingRight: 'calc(1rem + env(safe-area-inset-right))',
+        paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))',
+        paddingLeft: 'calc(1rem + env(safe-area-inset-left))',
+      }}
     >
       <Card className="w-full max-w-2xl">
         <CardContent className="flex flex-col gap-6 p-8">

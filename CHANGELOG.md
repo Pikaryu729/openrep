@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Installable PWA shell: a web manifest, a precaching service worker (built
+  with `vite-plugin-pwa`'s `injectManifest` from `src/sw.ts`), an install card
+  in Settings (Chromium's `beforeinstallprompt`, plus iOS manual instructions),
+  and an update banner that asks before activating a new service worker — a
+  mid-workout session is never silently reloaded.
+- A mobile-first UI pass: bottom tab bar navigation, stacked card layouts for
+  workouts and the exercise list below the shared 768px breakpoint,
+  safe-area-aware insets, and back links from detail pages.
 - A configurable dashboard. **Edit dashboard** turns the page into a draft you
   can add widgets to, reorder, configure, and remove from; nothing persists
   until you press Save, and Cancel discards. Six widgets ship: summary tiles,

@@ -6,6 +6,12 @@ import { BACKEND_PORT, FRONTEND_ORIGIN, FRONTEND_PORT } from './support/ports'
 
 export default defineConfig({
   testDir: './tests',
+  // pwa-install.spec.ts runs under playwright.pwa.config.ts instead (see
+  // that file's header comment): it needs a production `vite build` +
+  // `vite preview` server to get a real service worker, not the `pnpm dev`
+  // server this config's webServer starts. Exclude it here so `pnpm test`
+  // doesn't try to run it against a server with no real SW to register.
+  testIgnore: '**/pwa-install.spec.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

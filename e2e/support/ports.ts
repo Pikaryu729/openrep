@@ -26,3 +26,17 @@ export const FRONTEND_PORT = resolvePort(process.env.E2E_FRONTEND_PORT, 5174)
 export const BACKEND_PORT = resolvePort(process.env.E2E_BACKEND_PORT, 8766)
 
 export const FRONTEND_ORIGIN = `http://localhost:${FRONTEND_PORT}`
+
+/**
+ * Dedicated ports for playwright.pwa.config.ts, the separate config that
+ * runs pwa-install.spec.ts against a production build (`vite build` +
+ * `vite preview`) instead of the dev server the main suite uses — see that
+ * config's header comment for why it needs its own Playwright config file at
+ * all. Distinct from FRONTEND_PORT/BACKEND_PORT above so the two suites never
+ * collide if they ever ran concurrently (e.g. two CI jobs in parallel).
+ * Same `Number(...) || fallback` reasoning as resolvePort above.
+ */
+export const PWA_FRONTEND_PORT = resolvePort(process.env.E2E_PWA_FRONTEND_PORT, 5175)
+export const PWA_BACKEND_PORT = resolvePort(process.env.E2E_PWA_BACKEND_PORT, 8767)
+
+export const PWA_FRONTEND_ORIGIN = `http://localhost:${PWA_FRONTEND_PORT}`

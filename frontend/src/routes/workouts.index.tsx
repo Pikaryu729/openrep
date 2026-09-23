@@ -64,7 +64,7 @@ export function WorkoutsPage() {
             }}
           >
             <div className="flex flex-wrap items-end gap-3">
-              <div className="grid gap-1.5">
+              <div className="grid w-full gap-1.5 md:w-auto">
                 <Label htmlFor="workout-date">Date</Label>
                 <Input
                   id="workout-date"
@@ -73,7 +73,7 @@ export function WorkoutsPage() {
                   onChange={(event) => setPerformedOn(event.target.value)}
                 />
               </div>
-              <div className="grid gap-1.5">
+              <div className="grid w-full gap-1.5 md:w-auto">
                 <Label htmlFor="workout-notes">Notes</Label>
                 <Input
                   id="workout-notes"
@@ -82,7 +82,7 @@ export function WorkoutsPage() {
                   placeholder="Notes (optional)"
                 />
               </div>
-              <Button type="submit" disabled={createWorkout.isPending}>
+              <Button type="submit" className="w-full md:w-auto" disabled={createWorkout.isPending}>
                 Log workout
               </Button>
             </div>
@@ -113,8 +113,8 @@ export function WorkoutsPage() {
                   className="block no-underline"
                 >
                   <Card className="py-4 transition-colors hover:border-primary">
-                    <CardContent className="flex items-center justify-between">
-                      <div>
+                    <CardContent className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
                         <strong className="font-semibold">{workout.performed_on}</strong>
                         {workout.notes && (
                           <p className="text-sm text-muted-foreground">{workout.notes}</p>

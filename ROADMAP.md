@@ -1,5 +1,7 @@
 # OpenRep Roadmap
 
+_Last reviewed: 2026-08-28._
+
 What stands between the current build and something we'd ask a stranger to
 install. The app today is a solid CRUD tracker: exercises, workouts, sets,
 theming, units, and JSON backup all work and are tested. But "works" and
@@ -7,53 +9,61 @@ theming, units, and JSON backup all work and are tested. But "works" and
 
 ## v0.1 — Release blockers ("Now")
 
-These are the things a first-time user hits in the first ten minutes. Ship
-nothing until all six are done.
+These are the things a first-time user hits in the first ten minutes. Four of
+the original six are now shipped; mobile usability is the active next item.
 
-### 1. A real install & run story
-Today the app is `git clone` + `uv run uvicorn` + `pnpm dev` — that's a
-developer setup, not a product. A local-first app lives or dies on this.
-- One command / one artifact to run both server and UI (single FastAPI process
-  serving the built frontend is the cheapest path; a packaged binary via
-  PyInstaller or a Tauri wrapper is the nicer one).
-- Decide the default port story and what "open the app" means (auto-open
-  browser? menu-bar icon?).
-- Versioned releases with a changelog, and `--version` reporting.
+### Shipped
 
-### 2. Surface the analytics we already built
-The backend ships personal records, per-exercise history, and estimated 1RM
-endpoints — **none of which have any UI**. Progress visualization is the whole
-reason someone logs sets instead of using a notebook.
-- Exercise detail view: history chart (weight + e1RM over time), PR badges.
-- Dashboard: volume as a chart rather than a bare table, plus a "recent PRs"
-  panel.
-- This is our core value prop; the table-only dashboard undersells the product.
+1. ✅ **A real install & run story.** `uv tool install openrep` (or `pipx`)
+   installs a single process that serves the API and the built frontend;
+   `openrep --version` and `/api/health` report version; `CHANGELOG.md` has a
+   released `[0.1.0]` entry. A browser-installable PWA shell (web manifest,
+   precaching service worker, install + update prompts) ships too — the
+   offline half is the v0.2 item below. (Auto-opening a browser / menu-bar
+   icon was
+   called out as a "nicer, not required" stretch and remains undone, but
+   doesn't block release.)
+2. ✅ **Surface the analytics we already built.** `exercises.$exerciseId.tsx`
+   shows PR stat tiles (heaviest set, best e1RM, best session volume) and an
+   `ExerciseProgressChart`; the dashboard has `volume_chart`,
+   `personal_records`, `exercise_progress`, `category_breakdown`, and
+   `recent_workouts` widgets, with volume + PRs in the default layout.
+3. ✅ **Starter exercise library.** `frontend/src/lib/starterExercises.ts`
+   seeds ~44 curated movements through the onboarding wizard; replay-safe,
+   skippable, and deletable like any other exercise.
+4. ✅ **First-run onboarding & empty-state flow.** `OnboardingWizard`
+   (welcome → units → appearance → exercises → finish) is gated on a genuinely
+   empty database and funnels into "log your first workout" or "explore the
+   dashboard." Known edge cases (flash, race, quota-full) were already fixed
+   in review.
 
-### 3. Starter exercise library
-The app boots completely empty. Nobody wants to type "Bench Press" before
-they can log their first set.
-- Seed a curated library (~50 common barbell/dumbbell/bodyweight movements,
-  categorized) on first run, via the existing import mechanism.
-- Make it skippable and deletable — it's their database.
+### Active next item
 
-### 4. First-run onboarding & empty-state flow
-Empty states exist per page, but there's no thread connecting them. A new user
-should land on a guided path: create/seed exercises → log first workout → see
-first chart. One-time dismissible, no accounts, no tour overlay theatrics.
+### 5. Mobile usability pass — **active**
+The first mobile-first pass is shipped for workout logging and the exercise
+list. `useIsMobile()` swaps the workout and exercise desktop tables for stacked
+cards below the shared 768px breakpoint; mutation handlers stay shared between
+those render branches. Numeric weight/reps/RPE inputs carry decimal or numeric
+`inputMode` hints, row actions use the existing icon-sized targets, add forms
+reflow below `md`, and `SettingsRow` wraps long copy. The mobile shell also uses
+a fixed bottom nav and adds back links to both detail-page success paths.
 
-### 5. Mobile usability pass
-People log sets *in the gym, on a phone*. The shadcn sidebar collapses to a
-sheet, but the workout detail page (our most-used screen) is a desktop table
-with small touch targets.
-- Audit every flow at 390px width; make add-set a thumb-friendly flow.
-- Bigger touch targets for the reorder/edit/delete row actions.
+The broader audit remains active:
+- Audit every flow at 390px width and make each logging flow thumb-friendly.
+- Check touch targets and numeric keypad hints across any remaining flows.
 
-### 6. Data-safety guarantees
-Local-first means we are the user's only backup. Right now one bad migration
-or an accidental "Replace" import loses everything silently.
-- Automatic backup snapshot before every schema migration (server-side, cheap).
-- Automatic rolling backups (e.g., daily, keep last 7) into `~/.openrep/backups/`.
-- "Replace" import writes a safety export first, and says so.
+### Remaining
+
+### 6. Data-safety guarantees — partially done
+Local-first means we are the user's only backup. The manual side exists —
+Settings → Backup has real export/import with merge/replace modes behind a
+`ConfirmDialog` — but the automatic safety nets the roadmap called for are
+still missing:
+- No backup snapshot before `alembic upgrade head` runs (`core/migrate.py`).
+- No automatic rolling backups (e.g., daily, keep last 7) into
+  `~/.openrep/backups/`.
+- "Replace" import still deletes immediately with no auto-export safety copy
+  first — the confirm dialog warns, but doesn't write a recovery file.
 
 ## v0.2 — The retention release ("Next")
 
@@ -67,8 +77,12 @@ What makes week-two users stay, once strangers can install it.
   competitor.
 - **Richer set semantics** — bodyweight (weight optional), warmup vs working
   sets (warmups pollute PR/volume stats today), and failure/AMRAP marking.
-- **PWA / offline** — installable icon on the phone home screen, and resilience
-  to the backend being briefly unreachable. Pairs naturally with local-first.
+- **PWA offline resilience** — the installable half shipped with v0.1:
+  web manifest, service worker, and install/update prompts. What remains is
+  resilience to the backend being briefly unreachable — runtime `/api` caching
+  and a local write queue, as the offline-data module extending `src/sw.ts`
+  (see `tasks/SPEC-pwa-shell.md` assumption #5). Pairs naturally with
+  local-first.
 - **CSV import from Strong / Hevy** — every serious user we want already has
   years of data in one of these. Import is the single biggest adoption lever.
 - **Undo for destructive actions** — we confirm deletes, but confirmation is
@@ -99,6 +113,10 @@ Declaring these keeps scope honest — revisit only with strong evidence:
 
 v0.1 is ordered around the first-session funnel: install (1) → have something
 to log against (3, 4) → log from a phone (5) → see why it was worth it (2) →
-trust us with the data (6). v0.2 is ordered by retention impact per unit of
-effort, with templates first because logging friction is the #1 churn driver
-in this category.
+trust us with the data (6). Items 1–4 and the first mobile logging pass are
+shipped, so (5) remains the active next item until the broader phone audit is
+complete. Mobile logging is the highest-frequency interaction in the app,
+while (6)'s tail-risk data-loss scenarios already have a manual (if
+unprompted) safety net via export. v0.2 is ordered by retention impact per
+unit of effort, with templates first because logging friction is the #1 churn
+driver in this category.
